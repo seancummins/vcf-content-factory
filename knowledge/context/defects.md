@@ -1208,7 +1208,7 @@ reused. Field lines are `- **Field:** value` (parsed by
   explicit value is skipped instead of failed, inflating compliance scores
   (false pass)
 - **Severity:** blocking
-- **Status:** open
+- **Status:** closed
 - **Affects:** compliance
 - **First-seen:** adapter repo root commit `c6d9e73` (2026-06-08); in every
   build since, confirmed in builds 85 and 86
@@ -1228,7 +1228,121 @@ reused. Field lines are `- **Field:** value` (parsed by
   compliant false) and count it as a fail.
 - **Close condition:** `sdk-adapter-author` lands the fix with a
   `ControlEvaluatorTest` case asserting an absent key with a value-required
-  expected is a fail, not a skip (and checks no `requiresAbsence` /
-  non-empty-mode expectation depends on the skip); `sdk-adapter-reviewer`
-  confirms it on the next build.
+  expected is a fail with Actual `(undefined)`, not a skip, and that
+  `X or Undefined`, `X or Not Present` and bare `Not Present` still pass
+  when absent while `(non-empty)` and `not:X` fail; an `OverridesTest` case
+  where an Override removes "or Undefined" and the key is absent asserts a
+  fail rather than a dropped control; `sdk-adapter-reviewer` confirms it.
+- **Progress 2026-10-13:** fix landed in build 90, adapter commit `ed4236d`
+  (`ControlEvaluatorTest.absentAdvancedSetting`) and `a285ce9`
+  (`OverridesTest.overrideDropsOrUndefined`); the build 90 re-review
+  (`knowledge/context/reviews/compliance-build-90.md`) confirms both and
+  proposes close. Also reachable from the build 90 overrides file: an
+  Override that drops "or Undefined" hit the same skip. Third review pass
+  (APPROVE, eae8658, pak 26323577...b4c4) confirms the close condition met;
+  **Closed on devel evidence, build 91 (installed 11:33 AM, version
+  0.0.0.91 confirmed on /api/solutions):** at the 11:34 AM cycle the
+  previously skipped controls got their first samples as fails
+  (`esx.memory-tiering-encryption` 0 on both wld01 hosts with a new alert at
+  11:38 AM; `vm.efi-boot-types` on 25 VMs, `vm.limit-console-connections` on
+  23, `vm.vmrc-lock` on 22, all 0); environment avg score 86.02 to 78.81 with
+  scored 175 and non-compliant 140 unchanged; `esx.network-dvfilter` reads
+  Actual `""` Compliant 1 on real hosts, so the empty-value exception holds.
+- **Closing-evidence:** adapter commits `ed4236d` and `a285ce9` (tests
+  `ControlEvaluatorTest.absentAdvancedSetting`,
+  `OverridesTest.overrideDropsOrUndefined`); review
+  `knowledge/context/reviews/compliance-build-90.md` third pass APPROVE;
+  devel build 91 install 2026-10-13 11:33 AM (pak sha256 cdad54e3...36e4):
+  newly failing controls listed under Progress, avg score 86.02 to 78.81.
 - **Related:** `knowledge/lessons/unreadable-is-not-compliant.md`.
+
+### DEF-023
+
+- **Title:** Compliance: a VCF Ops resource list longer than one page, or a
+  2xx body without `resourceList`, was taken as complete, so the objects
+  past the page silently never received compliance data
+- **Severity:** tracked
+- **Status:** open
+- **Affects:** compliance
+- **First-seen:** every build through 87 (single `pageSize=10000` fetch in
+  `ComplianceStitcher`); found 2026-10-12
+- **Source:** `knowledge/context/reviews/compliance-build-88.md` (WARNING 2)
+- **Summary:** `ComplianceStitcher.fetchResources` read one page of the
+  Suite API resource list and treated it as the whole inventory, and a 2xx
+  body with no `resourceList` read as zero resources. Before build 88 the
+  missed objects were scored and counted but never pushed; from build 88
+  (rollup counts only pushable objects) they would leave the totals with
+  no visible signal. Fix (build 88, adapter commit `0c38e91`): page until
+  `pageInfo.totalCount` rows are in, mark the kind load-failed on a missing
+  list, an empty page short of the total, or the 20-page cap, holding the
+  kind back with `Rollup|incomplete` = 1.
+- **Close condition:** devel proof with the vCenter collection alert path
+  exercised (a cycle whose resource list fails marks the kind incomplete and
+  the alert fires) or paging seen in the adapter log past one page; the
+  2026-10-13 log read found no page-count line and lists under one page, so a
+  log line or a test fixture over 10,000 objects is still owed (build 94
+  candidate).
+
+### DEF-024
+
+- **Title:** Compliance: `vm.dvfilter` looks up the wildcard parameter
+  `ethernet*.filter*.name` as a literal key, so a VM with a dvfilter
+  attachment passes (false pass)
+- **Severity:** blocking
+- **Status:** closed
+- **Affects:** compliance
+- **First-seen:** adapter repo root commit `c6d9e73` (2026-06-08); every
+  build since, under SCG 7.0, 8.0, 9.0 and 9.1
+- **Source:** `knowledge/context/reviews/compliance-build-90.md` (re-review
+  WARNING 1); registered 2026-10-13
+- **Summary:** `ControlEvaluator` (around line 136) reads the control's
+  `parameter` as one advanced-setting key. The dvfilter parameter is a
+  pattern (`ethernet*.filter*.name`), so the lookup never finds
+  `ethernet0.filter0.name` and the "Not Present" expectation passes on
+  every VM, including one with a filter attached. Violates
+  `knowledge/lessons/unreadable-is-not-compliant.md`. Fix: glob the
+  pattern over the VM's advanced-setting keys; any match is a fail with the
+  matched keys in Actual; an unreadable settings read stays unreadable.
+- **Close condition:** `sdk-adapter-author` lands the matcher with
+  `ControlEvaluatorTest` cases (no filter keys pass, one filter key fails
+  naming it, read failure unreadable) and confirms no other canonical CSV
+  parameter carries `*` unmatched; `sdk-adapter-reviewer` confirms.
+- **Progress 2026-10-13:** fix landed in build 90, adapter commit `eae8658`
+  (`ControlEvaluatorTest.patternParameter`); third review pass confirms the
+  close condition met and the canonical CSV scan. **Closed on devel
+  evidence, build 91:** all 25 wld01 VMs read `vm.dvfilter` Actual
+  `(undefined)` Compliant 1 (no filter keys present, pattern evaluated);
+  the fail path is covered by `ControlEvaluatorTest.patternParameter`
+  since no devel VM carries a dvfilter.
+- **Closing-evidence:** adapter commit `eae8658`
+  (`ControlEvaluatorTest.patternParameter`, canonical CSV scan: only
+  vm.dvfilter 7.0 to 9.1 carries `*`); review
+  `knowledge/context/reviews/compliance-build-90.md` third pass APPROVE;
+  devel build 91 (2026-10-13): 25 wld01 VMs read `vm.dvfilter` Actual
+  `(undefined)` Compliant 1 through the pattern path.
+- **Related:** DEF-022 (same evaluator, same lesson).
+
+### DEF-025
+
+- **Title:** Compliance: a control retired from an object (guide version
+  change, control no longer applicable) has its leftover failing key set to
+  -1 once, so its open alert never sees cancel cycles and stays active
+- **Severity:** tracked
+- **Status:** open
+- **Affects:** compliance
+- **First-seen:** every build with the stale-key cleanup (build 8x), found
+  2026-10-13 while fixing the same shape for Skip (adapter issue #41, fixed
+  in build 92)
+- **Source:** `knowledge/context/reviews/compliance-build-92.md` (WARNING 4);
+  adapter issue #42
+- **Summary:** `cleanBatch` / `staleControls` push -1 for a retired key one
+  time; the control symptoms need three cancel cycles of non-triggering
+  samples, so an alert open on that key stays open after a guide version
+  change or when a control stops applying. Not a false pass (the key reads
+  -1, not evaluated); a stale alert. Fix: push -1 for retired keys on every
+  cycle while the object remains on the new version, or cancel through the
+  same per-cycle path build 92 uses for Skip.
+- **Close condition:** fix landed with a test asserting the -1 push repeats
+  on later cycles for a retired key; devel evidence that an open alert on a
+  retired control cancels within three cycles of a version change.
+- **Related:** adapter issue #41, DEF-022.

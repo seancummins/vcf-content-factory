@@ -154,3 +154,49 @@ it is not a published pak.
 - **adapter_kind:** synology_diskstation
 - **Owner:** sentania-labs. Public repo.
 - **Notes:** Synology DiskStation.
+
+## Third-party Python Integration SDK paks (forks, contribute upstream)
+
+Registered 2026-10-13 on Scott's instruction ("I would like to fork these so we
+can better manage updates to them as opposed to straight cloning"). These are
+not factory SDK adapters: they are Python Integration SDK packs by other
+authors, forked into `sentania-labs` so tune-up pull requests can be prepared
+on a branch and sent upstream. They stay Python. The clone target reuses
+`content/sdk-adapters/` only so the bootstrap script manages them; build-sdk,
+validate-sdk and pak-compare do not apply. Keep `main` tracking upstream (add
+an `upstream` remote and fast-forward from it); do work on branches.
+
+### vsanhostmetrics (fork of nickfirefoot/vsanhostmetrics)
+
+- **Remote:** https://github.com/sentania-labs/vsanhostmetrics
+- **Target:** `content/sdk-adapters/vsanhostmetrics/`
+- **Upstream:** `https://github.com/nickfirefoot/vsanhostmetrics.git`
+- **Release branch:** `agent/beta-vsan-host-metrics` (upstream releases 1.3.1
+  to 1.4.6 were cut here; `main` is stale at 1.2.3)
+- **Type:** Python Integration SDK container adapter (upstream's)
+- **Status:** forked 2026-10-13; assessed
+  (`investigations/2026-10-13-vsanhostmetrics-tuneup-assessment.md`); fork
+  issues #1 to #6 track the tune-ups (accepted certificate unused, silent
+  collect errors, one cluster aborts all, username outside the credential,
+  undeclared pyvmomi, foldered datacenters skipped; #7 README package name); PRs upstream on Scott's go.
+  CI: branch `tuneup/ci-ghcr-attestation-release` off the author's release branch
+  `agent/beta-vsan-host-metrics` (main is stale at 1.2.3), proof tag `v1.4.6-rc.1`
+  (run 38477153855), see `knowledge/designs/ci/python-pack-ghcr-attestation.md`
+
+### cluster-perf-risk (fork of gillaspy/cluster-perf-risk)
+
+- **Remote:** https://github.com/sentania-labs/cluster-perf-risk
+- **Target:** `content/sdk-adapters/cluster-perf-risk/`
+- **Upstream:** `https://github.com/gillaspy/cluster-perf-risk.git`
+- **Release branch:** `main`
+- **Type:** Python Integration SDK container adapter (upstream's); credential
+  posture already mapped in
+  `investigations/2026-10-13-cluster-perf-risk-credential-reuse.md`
+- **Status:** forked 2026-10-13; assessed
+  (`investigations/2026-10-13-cluster-perf-risk-tuneup-assessment.md`); fork
+  issues #1 to #9 track the tune-ups (silent login failure, unverified TLS,
+  publish-to-native edges, per-cluster exception, timeouts, request volume,
+  token at DEBUG, empty Test Connection, packaging); PRs upstream on Scott's go.
+  CI: branch `tuneup/ci-ghcr-attestation` proven by tag `v1.3.0-rc.1` (run
+  38471417171, image and pak attested and signed, Trivy gated), see
+  `knowledge/designs/ci/python-pack-ghcr-attestation.md`

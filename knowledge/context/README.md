@@ -74,6 +74,16 @@ Tier 2 framework v2 migration record (componentLogger, keyed constructors,
 the SPI reshape) — cross-referenced throughout `tier2_architecture.md` and the
 SDK adapter reviews.
 
+### `python_integration_sdk.md`
+VMware's Python Integration SDK (container adapters, `mp-init` / `mp-test` /
+`mp-build`, `aria.ops` lib): REST contract, AdapterDefinition to describe.xml
+(identType = advanced = identity), certificate hand-off and how to verify with
+pyVmomi / requests, credentials, the Suite API client's insecure defaults,
+error reporting, pak layout (image referenced by registry digest, never
+embedded), today's fork defects, and a Python pack PR review checklist. Read
+before authoring or reviewing a Python pack (the third-party forks in
+`managed_paks.md`).
+
 ---
 
 ## Read for content authoring
@@ -123,7 +133,7 @@ cycles because that did not happen.
 | `dashboard_delete_api.md` | Dashboard delete API |
 | `uninstall_empty_collection_shapes.md` | What the UI API returns for empty report/view/dashboard collections (observed vs unresolved), for uninstaller shape guards |
 | `summary_dashboard_assignment.md` | Binding a dashboard to an object type's Summary tab via the UI Struts call (no Suite API); pak-binding negative corrected 2026-08-25 |
-| `summary_dashboard_pak_binding.md` | Pak-side Summary binding: `<pak>/content/dashboards/dashboards.properties` (`<dir>=<AdapterKind>:<ResourceKind>`), installer behavior, template-clone semantics, uninstall gap, 9.0 through 9.2 |
+| `summary_dashboard_pak_binding.md` | Pak-side Summary binding: `<pak>/content/dashboards/dashboards.properties` (`<dir>=<AdapterKind>:<ResourceKind>`), installer behavior, template-clone semantics, uninstall gap, 9.0 through 9.2; complete 9.0.2 WidgetType key list (Build 25137845) for checking widget types against 9.0.x |
 | `reports_api_surface.md` | Reports API surface |
 | `pak_install_api_exploration.md` | .pak install API exploration |
 | `pak_uninstall_api_exploration.md` | .pak uninstall API exploration |
@@ -169,6 +179,11 @@ Session-specific research logs, diff analyses, and exploration notes. Read when
 debugging a specific issue; not required reading.
 
 - `policy_fragment_wire_format.md`: policy super metric enablement wire format and pak policies-directory (`<pak>/content/policies/`) fragment support (also listed under `wire-formats/`).
+- `2026-10-12-compliance-pak-summary-binding.md`: compliance build 88 World Summary did not bind on devel 9.0.2 because the pak importer crashes on an unknown widget type (`Section`, missing from that build), and the crash aborts the whole dashboard before `dashboards.properties` is read.
+- `2026-10-13-cluster-perf-risk-credential-reuse.md`: cluster-perf-risk has no credential and talks only to the Suite API with the platform login; no transferable credential reuse for an adapter that opens its own vCenter session.
+- `2026-10-13-cluster-perf-risk-tuneup-assessment.md`: ranked tune-up PRs for the forked cluster-perf-risk pack (silent login failure, unverified Suite API TLS, publish-to-native edges); fork issues #1 to #9.
+- `2026-10-13-sdk-upstream-issue-drafts.md`: nine draft issues plus one comment on #161 for the official Python Integration SDK repo (cryptography pin, Suite API client failure handling, token logging, verify default, describe.xml `isKpi`/enum default, `get_objects_by_type`, a leading suite-api path segment prefix, dotless registry host, registry password on argv), each with a repro verified against the PyPI releases; pip's vendored copies dropped as not an SDK defect. Not filed.
+- `2026-10-13-vsanhostmetrics-tuneup-assessment.md`: ranked tune-up PRs for the forked vsanhostmetrics Python SDK adapter: accepted certificate ignored (use `get_certificates()` with pyVmomi `serverPemCert`), collect errors silently discarded, one non-vSAN cluster aborts collection, username outside the credential type.
 
 ### `reviews/` — Build and framework review reports
 Point-in-time review records: per-build SDK adapter reviews written by

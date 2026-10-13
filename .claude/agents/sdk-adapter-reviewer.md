@@ -221,6 +221,20 @@ its authority.
       orchestrator can graduate it per RULE-012.
     You never edit the registry; the orchestrator does.
 
+13. **describe.xml import rules (what Ops checks at install, not what
+    validate-sdk checks).** Whenever the build touches alerts, symptoms,
+    or the alert generator: unpack the **built pak** and parse its
+    `describe.xml` yourself. Every `<SymptomSets>` container, at any
+    depth, has two or more children (a single symptom set goes bare under
+    `<State>`); every `<SymptomSet>` references a symptom that exists;
+    `waitCycles` / `cancelCycles` are integers. A generator whose `--check`
+    is clean only proves the describe matches the generator, and
+    pak-compare does not look at alert structure at all. Origin:
+    compliance build 90 passed three review passes and was rejected by
+    Ops at install ("A composite symptom set should contain at least two
+    Symptom Sets"), lesson `knowledge/lessons/pak-content-bundling.md`
+    addendum 2026-10-13, factory issue #203. A violation is BLOCKING.
+
 ## Workflow
 
 1. Read the orchestrator brief and the author's `SDK ADAPTER RESULT` block
