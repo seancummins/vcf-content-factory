@@ -80,6 +80,8 @@ git_describe_command = "git describe --dirty --tags --long --match core-v*"
 fallback_version = "0.0.0"
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
+
 # ---------------------------------------------------------------------------
 # Markers
 # ---------------------------------------------------------------------------
