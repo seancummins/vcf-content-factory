@@ -38,6 +38,7 @@ now `knowledge/HOW_IT_WORKS.md`, `knowledge/vcf_ops_concepts.md`, and
 | `scripts/` | Hooks and operational shell scripts. Cannot move — wired into settings/CI. |
 | `tests/` | Framework test suite. Cannot move. |
 | `.claude/` | Harness config: agents, skills, settings. Cannot move. |
+| `.agents/` | Codex-compatible portable skills. Mirrors governance and workflows without changing `.claude/`; parity is checked in CI. |
 | `.github/` | CI workflows. Cannot move. |
 
 ## Directories — vendor / third-party, immutable (never edit; RULE-010/RULE-016)

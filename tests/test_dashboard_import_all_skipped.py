@@ -843,15 +843,27 @@ class TestExtractDashboardNames:
         assert all(isinstance(n, str) for n in names)
         ", ".join(names)  # must not raise
 
-    def test_deeply_nested_json_does_not_escape_as_recursionerror(
+    def test_deeply_nested_json_never_escapes_and_stays_join_safe(
         self, install_mod
     ):
-        """W-2: json.loads raises RecursionError here, and RecursionError
-        subclasses RuntimeError, so the old `except (TypeError,
-        ValueError)` did not catch it. Every caller runs AFTER the import,
-        so an escape leaves a partial install."""
+        """Decoder depth behavior varies by CPython version; the installer
+        contract is that this post-import advisory helper never raises and
+        always returns join-safe strings."""
         payload = '{"dashboards":' + "[" * 40000 + "]" * 40000 + "}"
-        assert install_mod._extract_dashboard_names(payload) == []
+        names = install_mod._extract_dashboard_names(payload)
+        assert isinstance(names, list)
+        assert all(isinstance(name, str) for name in names)
+        ", ".join(names)
+
+    def test_decoder_recursionerror_degrades_to_empty_names(
+        self, install_mod, monkeypatch
+    ):
+        """W-2: a decoder RecursionError must not escape after import."""
+        def raise_recursionerror(_payload):
+            raise RecursionError("synthetic decoder recursion")
+
+        monkeypatch.setattr(install_mod.json, "loads", raise_recursionerror)
+        assert install_mod._extract_dashboard_names('{"dashboards":[]}') == []
 
     def test_view_sibling_also_survives_deep_nesting(self, install_mod):
         """The symmetry claim, driven rather than assumed. Note the view

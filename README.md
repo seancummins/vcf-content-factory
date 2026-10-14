@@ -17,9 +17,9 @@ instances, and survives uninstall, because every piece is plain text
 in a git repo and every install is a visible CLI call. Nothing is
 hidden.
 
-This is what the workflow looks like in practice, you and Claude Code,
-in conversation, producing content while you focus on the question
-you're trying to answer.
+This is what the workflow looks like in practice: you and Claude Code or
+OpenAI Codex, in conversation, producing content while you focus on the
+question you're trying to answer.
 
 ![Ask. Build. Ship.](knowledge/diagrams/intro-flow.svg)
 
@@ -47,6 +47,11 @@ python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 claude
 ```
+
+For Codex, start Codex in the repository and run
+`scripts/codex-preflight.sh`. Codex reads `AGENTS.md` and the portable
+`.agents/skills/` workflows. The preflight is read-only; it does not install
+dependencies, clone remotes, or contact VCF Operations.
 
 Runs on Linux, macOS, or WSL. On Windows, use WSL: VS Code's WSL extension
 makes it a first-class workflow, and native Windows is not supported

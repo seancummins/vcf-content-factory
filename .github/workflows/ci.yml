@@ -83,6 +83,18 @@ jobs:
       - name: Bootstrap SDK adapter repos
         run: bash scripts/bootstrap_managed_paks.sh
 
+      - name: Check Codex foundation
+        # The portable Codex skills are intentionally independent from
+        # .claude/skills during Increment A. Check paired contracts before
+        # running the broader test suite so a missing migration surface is
+        # immediately visible.
+        run: |
+          python3 scripts/check_skill_parity.py
+          if bash scripts/codex-preflight.sh --unknown >/dev/null 2>&1; then
+            echo "::error::codex-preflight accepted an invalid option"
+            exit 1
+          fi
+
       - name: Framework-review reminder (non-blocking, P4)
         # Nudge only — emits a ::warning:: when a PR changes vcfcf_*/ with
         # no knowledge/context/reviews/framework/ doc. The real gate is the
