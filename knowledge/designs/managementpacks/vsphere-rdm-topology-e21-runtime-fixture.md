@@ -1,5 +1,11 @@
 # E2.1 — runtime fixture configuration
 
+**E2.2 correction:** build 6 supports explicit empty-string values only for
+nonunique, nonidentity identifiers, without normalization or omission. See the
+[SDK-backed compatibility addendum](vsphere-rdm-topology-e22-empty-identifiers.md)
+for evidence, limits, the new candidate and operator retry. Build-5 validation
+results below remain historical; build 5 does not support that representation.
+
 Local development candidate only; no installation or live access authorized.
 This addendum replaces the build-4 fixture-binding blocker in the
 [E2-P procedure](vsphere-rdm-topology-e2p-lab-evaluation.md), not its identity,

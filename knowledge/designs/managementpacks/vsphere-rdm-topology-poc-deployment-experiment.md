@@ -2,7 +2,97 @@
 
 ## Status and decision
 
-**Status:** E1 offline plan only. **No installation authorization.**
+**Status:** E2 live POC mechanics demonstrated in the development lab,
+operator-confirmed. The qualified closeout below is the current result;
+the E1 procedure is retained as the original, stricter experiment plan.
+This documentation update authorizes no further live activity.
+
+## E2 closeout — operator-confirmed live result
+
+Source: the operator's E2 closeout report in this conversation. No new live
+API calls, log collection or screenshot inspection were performed for this
+record. Exact collection timestamps/counts and the Operations build were not
+supplied; no experiment date/window is reconstructed.
+
+Installed **VCF Content Factory RDM Topology POC**, version **0.0.0.6**,
+SHA-256 `0e77f1837cef68d6c40883fc5ff2359211307ef600940dd2ee140e25449aafc2`.
+The operator used the development environment's unsigned-PAK installation
+option. The package appeared in the Operations repository. This remains a
+local development preview, not a production release.
+
+The configuration UI exposed Runtime Fixture JSON. One Operations-managed
+`fixture_json` held the exact Suite API-derived VM ResourceKey with
+vCenter/MOID scope, credential-free configuration and one RDM mapping fixture.
+Validate Connection succeeded; the instance displayed **Collecting** and
+**Data Receiving**. The POC has no remote tester, vCenter discovery or authentication
+code: Validate Connection is a UI observation, not proof of authenticated
+vCenter collection or a separate identity-validation test.
+
+The operator observed exactly one `RdmMapping`, with the existing VMware VM
+as its parent in Operations topology. Existing VMware-owned topology remained
+visible. The edge remained visible at subsequent checks after additional
+elapsed collection time, and no duplicate mapping resources appeared. Lab
+display names and raw identity values are intentionally omitted here.
+
+```text
+Existing VMWARE::VirtualMachine --(additive foreign-parent edge)--> RdmMapping
+```
+
+This is the first live confirmation of this POC's cross-management-pack
+VM-parent mechanism. It demonstrates topology beyond a disk metric instance;
+it is **not** a pass of every original persistence/cleanup criterion below.
+
+### Acceptance matrix
+
+PASS means the bounded observation stated, not a stronger inferred result.
+NOT TESTED includes checks not independently verified or not recorded.
+
+| Criterion | Result | Evidence / qualification |
+|---|---|---|
+| Scoped VM identity and exact ResourceKey fixture | PASS | Prior read-only identity proof retained; operator confirms exact key and vCenter/MOID configuration. Display names are not matching evidence. |
+| Package acceptance and repository presence | PASS | Operator-confirmed installation of the checksum-pinned build using the lab unsigned option. |
+| Runtime configuration field and credential-free instance acceptance | PASS | Field exposed, fixture configured, Validate Connection succeeded, Collecting/Data Receiving displayed. No remote-authentication claim. |
+| Exactly one pack-owned mapping | PASS | One mapping observed; no duplicate mapping resources at later checks. |
+| Existing VM is the mapping's parent in topology UI | PASS | Operator-confirmed foreign-parent edge; source implementation remains additive. |
+| Existing VMware topology remains visible | PASS | Visual observation only, not a complete before/after relationship-set audit. |
+| Relationship remains visible across subsequent checks | PASS | Observational persistence; exact elapsed time and completed-cycle counts not recorded. |
+| Second completed POC collection preserves resource UUID and exact edge set | NOT TESTED | No cycle timestamps, resource-UUID comparisons or duplicate-edge API audit supplied. No duplicate resources were visually observed. |
+| Edge survives a subsequent independently timestamped VMware adapter collection | NOT TESTED | VMware collection completion/order not independently verified. |
+| Independent Suite API edge persistence and complete baseline topology/count comparison | NOT TESTED | No timestamped API before/after evidence supplied for this closeout. |
+| Collector relocation/failover delivers the same fixture | NOT TESTED | Not exercised. |
+| Mapping deletion, edge cleanup and return to baseline | NOT TESTED | Not exercised; installed resources are not claimed removed. Original rollback procedure remains unexecuted guidance. |
+| Production vCenter discovery/authentication, LUN resource correlation and CanonicalLun | NOT TESTED | Not implemented in this POC. |
+
+**Disposition:** successful initial live topology proof with qualified observed
+persistence. Cycle-verified persistence, API verification and cleanup remain
+open technical uncertainties, not failures concealed by the observed success.
+No production-readiness claim is made.
+
+### Evidence handling
+
+The operator reports a topology screenshot in the conversation. No local
+screenshot archive was verified and no screenshot file was created or cited.
+If the operator wishes to retain it, a proposed local-only destination is
+`e2-topology-redacted.png` in the ignored `tmp/rdm-lab-probes/` scratch area,
+with owner-only permissions. This is a suggested future archive, not an
+existing evidence artifact or reproducible repository citation. Redact raw
+IDs, names where sensitive and unrelated inventory before sharing; do not
+commit raw ResourceKeys, fixture JSON, credentials, tokens or inventory captures.
+
+### Next technical milestone
+
+Propose **RDM mapping to verified LUN identity**, retaining the proven
+VM → mapping edge. See the
+[lab-validation follow-up](vsphere-rdm-topology-lab-validation.md#next-proposed-increment--rdm-to-lun-identity)
+for conditional reuse of an existing Operations LUN versus a pack-owned
+`CanonicalLun`. No new collector or relationship work is authorized here.
+
+## Original E1 experiment plan — retained for provenance
+
+The preconditions and procedure below are the original plan, not a claim that
+all were executed. The [E2-P lab-only evaluation](vsphere-rdm-topology-e2p-lab-evaluation.md)
+documents the narrower development-preview path; this closeout adds no release
+infrastructure or new governance requirements.
 
 The first experiment is intentionally narrower than the production RDM design.
 It tests whether the fixture-driven POC can create and retain exactly this

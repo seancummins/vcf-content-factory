@@ -2,12 +2,16 @@
 
 ## Status and scope
 
-**Status:** lab identity chain verified; SDK relationship persistence remains unproven.
+**Status:** read-only identity chain verified; the development build-6 POC's
+foreign VM-parent edge is now operator-confirmed in topology and remained
+visible at subsequent checks. Strict cycle/API persistence, failover and
+cleanup are not yet verified. See the
+[E2 closeout and acceptance matrix](vsphere-rdm-topology-poc-deployment-experiment.md#e2-closeout--operator-confirmed-live-result).
 
-This plan validates the source facts needed for the proposed Tier 2
-`RdmMapping` and `CanonicalLun` resources. It does not create an adapter
-repository, an adapter instance, a VCF Operations resource, a relationship,
-or a vCenter configuration change.
+The read-only probe phases below validate source facts for the proposed Tier 2
+`RdmMapping` and `CanonicalLun` resources; the probes do not create Operations
+resources or relationships. The separately operated E2 POC installation did
+create one mapping and its VM-parent edge. This update is documentation-only.
 
 The target model remains:
 
@@ -36,9 +40,10 @@ physical-mode RDM fixture (`vm-71`):
   instance through controller/unit, disk label, and backing filename, at high
   confidence. There were zero unmatched RDM mappings.
 
-These findings prove the source and identity chain only. A metric instance is
-not an independently addressable topology resource, and this validation does
-not prove that the Java SDK can persist a foreign-VM relationship. The
+These read-only findings prove the source and identity chain only. A metric
+instance is not an independently addressable topology resource. The later
+E2 live topology observation is separate evidence for the SDK VM-parent edge,
+not a reinterpretation of metric-instance correlation as topology. The
 separate POC decision record is
 `knowledge/designs/managementpacks/vsphere-rdm-topology-sdk-poc.md`.
 
@@ -81,6 +86,9 @@ The probe harness is [rdm_lab_probe.py](/home/scummins/Documents/vcf-content-fac
   LUN identifiers, URLs, tokens, or credentials. Output uses deterministic
   fingerprints, presence flags, and counts. An optional report is created
   mode `0600`; it is still lab inventory and must remain untracked.
+  The separate explicit `fixture-export` mode writes raw validated identities
+  only to its fixed ignored `0600` local handoff, never a report or terminal;
+  see the [E2.2 contract](vsphere-rdm-topology-e22-empty-identifiers.md).
 - The operator supplies a small fixture set through environment variables;
   the probe never inventory-scans an entire vCenter.
 
@@ -288,3 +296,54 @@ obtain a dedicated SDK review of mapping lifecycle (removed disk, backing
 replacement, shared LUN, vMotion) and the adapter's additive foreign-edge
 path. Adapter creation, build, installation, and any configuration change
 remain separate explicit approvals.
+
+## Next proposed increment — RDM-to-LUN identity
+
+The existing VM → `RdmMapping` edge is the proven starting point. The missing
+storage endpoint is **not yet an established Operations LUN resource kind**.
+Neither a related Datastore nor a Virtual Disk metric instance proves that a
+LUN object exists; metric instances are not independent relationship endpoints.
+
+Prefer reusing an existing native or third-party Operations LUN **if** its
+actual kind, complete ResourceKey/flags and storage identity yield one exact,
+unambiguous match. That avoids duplicate LUN representations and reuses the
+storage pack's existing topology. No suitable existing kind or unique binding
+has been established; lack of evidence is not proof that none exists.
+
+The previously approved pack-owned `CanonicalLun` remains the fallback/initial
+design target, not an assertion that such a native kind exists. Its stable
+identity must be supported before implementation; do not create one per VM,
+host or RDM mapping for the same proven LUN merely for convenience.
+
+Proposed sequence, for a later separately authorized technical increment:
+
+1. Inspect available resource-kind documentation/describe evidence, then, only
+   with read authorization, inventory candidate Operations LUN objects. Record
+   ownership and exact identity semantics, not guessed kind/attribute keys.
+2. Reuse the verified SOAP `backing.lunUuid == current-host ScsiLun.uuid` join
+   and its NAA canonical/durable-name evidence. Correlate those opaque source
+   identities to candidate LUN resources without guessed normalization.
+   NAA-class evidence does not establish arbitrary WWN equivalence or global
+   uniqueness across arrays/vCenters. Do not join by display name, bare MOID,
+   host-local device name or LUN number alone.
+3. If exactly one existing LUN is proven, propose an additive
+   `RdmMapping → existing LUN` edge while preserving that resource's ownership,
+   full key and existing topology. Verify the relevant foreign-LUN relationship
+   mechanism independently; the foreign-VM-parent proof does not establish it.
+4. Otherwise retain an explicit unresolved mapping. If no suitable existing
+   resource is established and identifiers are validated, propose the planned
+   local `RdmMapping → CanonicalLun` edge. Never choose the first ambiguous
+   candidate, fabricate a storage ID or create a duplicate as an ambiguity fix.
+
+The resulting logical chain is `existing VM → RdmMapping → verified LUN`,
+where the endpoint is either an existing resource **or** the justified
+adapter-owned canonical resource, not automatically both. Shared RDMs should
+converge on one validated LUN endpoint. Cross-host/vCenter identity stability,
+vMotion, inaccessible LUNs and array identity conflicts remain design/test
+questions; an absent read is unresolved, not evidence of storage deletion.
+
+Next-increment acceptance should require unique LUN correlation (or explicit
+unresolved status), no duplicate endpoint for a shared fixture, unchanged
+VM/foreign topology and repeatable additive links. Discovery/authentication,
+production lifecycle, timestamped persistence and cleanup still need their
+own technical work; none is implemented or executed by this closeout.

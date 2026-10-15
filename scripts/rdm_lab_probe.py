@@ -1,19 +1,28 @@
 #!/usr/bin/env python3
 """Read-only, opt-in lab probe for the proposed vSphere RDM topology pack.
 
-The default is offline plan output.  A live read requires both --execute and
---allow-read-only-lab.  Secrets are environment-only and all emitted identity
-values are fingerprints, never raw inventory values.
+The default is offline plan output. A live read requires both --execute and
+--allow-read-only-lab. Credentials remain environment-only. Reporting modes
+emit fingerprints, never raw inventory values; explicit fixture-export writes
+validated identities only to its fixed, ignored, owner-only local handoff.
 """
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 import hashlib
 import json
+import logging
 import os
+import shutil
+import socket
+import ssl
 import stat
+import subprocess
 import sys
+import tempfile
 import time
+import warnings
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
@@ -37,6 +46,76 @@ class OperationsShapeError(RuntimeError):
 
 class OperationsDiscoveryError(RuntimeError):
     """Operations VM discovery could not establish a complete candidate set."""
+
+
+class FixtureExportError(RuntimeError):
+    """Internal detail/cause is never rendered by the CLI; only allowlisted codes."""
+
+    STAGES = frozenset({"UNCLASSIFIED", "CONFIGURATION", "VCENTER_CONFIGURATION",
+        "OPS_CONFIGURATION", "VCENTER_SESSION", "VCENTER_CONNECTION", "VCENTER_AUTHENTICATION",
+        "VCENTER_READ", "OPS_CONNECTION", "OPS_AUTHENTICATION", "OPS_AUTHORIZATION", "OPS_READ",
+        "VM_IDENTITY_CORRELATION", "RDM_AMBIGUITY", "FIXTURE_SCHEMA_VALIDATION",
+        "JAVA_PARSER_SETUP", "JAVA_PARSER_VALIDATION", "OUTPUT_FILE"})
+    CODES = frozenset({"FAILED", "MISSING_CONFIGURATION", "SDK_UNAVAILABLE", "JAVA_UNAVAILABLE",
+        "PARSER_SOURCE_UNAVAILABLE", "COMPILE_FAILED", "PARSER_REJECTED", "TIMEOUT",
+        "TRANSPORT_ERROR", "AUTH_REJECTED", "HTTP_ERROR", "NO_RDM", "MULTIPLE_RDMS",
+        "UNSUPPORTED_PROFILE", "RESOURCE_NOT_OBJECT", "RESOURCE_KEY_MISSING", "RESOURCE_KEY_NOT_OBJECT",
+        "ADAPTER_KIND_INVALID", "RESOURCE_KIND_INVALID", "RESOURCE_NAME_MISSING", "RESOURCE_NAME_INVALID",
+        "IDENTIFIERS_MISSING", "IDENTIFIERS_NOT_ARRAY", "IDENTIFIERS_EMPTY", "IDENTIFIER_NOT_OBJECT",
+        "IDENTIFIER_TYPE_MISSING", "IDENTIFIER_TYPE_NOT_OBJECT", "IDENTIFIER_NAME_MISSING",
+        "IDENTIFIER_NAME_INVALID", "IDENTIFIER_NAME_DUPLICATE", "IDENTIFIER_VALUE_MISSING",
+        "IDENTIFIER_VALUE_NULL", "IDENTIFIER_VALUE_NOT_STRING", "IDENTIFIER_VALUE_EMPTY",
+        "IDENTIFIER_UNIQUENESS_MISSING", "IDENTIFIER_UNIQUENESS_NOT_BOOLEAN",
+        "VM_DEVICES_NOT_ARRAY", "RDM_LUN_IDENTITY_INVALID", "RDM_DISK_KEY_INVALID",
+        "OPS_RESPONSE_JSON_INVALID", "FIXTURE_SERIALIZATION_FAILED"})
+    # Structural schema paths only: never interpolate a returned identifier name,
+    # value, resource ID, list index, fingerprint or exception text.
+    FIELDS = frozenset({"resource", "resource.resourceKey", "resource.resourceKey.adapterKindKey",
+        "resource.resourceKey.resourceKindKey", "resource.resourceKey.name",
+        "resource.resourceKey.resourceIdentifiers", "resource.resourceKey.resourceIdentifiers[]",
+        "resource.resourceKey.resourceIdentifiers[].identifierType",
+        "resource.resourceKey.resourceIdentifiers[].identifierType.name",
+        "resource.resourceKey.resourceIdentifiers[].identifierType.isPartOfUniqueness",
+        "resource.resourceKey.resourceIdentifiers[].value", "vcenter.config.hardware.device",
+        "vcenter.rdm.backing.lunUuid", "mapping.virtual_disk_key", "operations.response", "fixture"})
+
+    def __init__(self, message: str, *, stage: str = "UNCLASSIFIED", code: str = "FAILED",
+                 field: Optional[str] = None):
+        super().__init__(message)
+        self.stage = stage if stage in self.STAGES else "UNCLASSIFIED"
+        self.code = code if code in self.CODES else "FAILED"
+        self.field = field if field in self.FIELDS else None
+
+
+def _fixture_schema_failure(code: str, field: str) -> None:
+    """Reject data unsupported by the fixture contract, not necessarily by Suite API."""
+    raise FixtureExportError("Response cannot satisfy the unchanged runtime fixture contract",
+                             stage="FIXTURE_SCHEMA_VALIDATION", code=code, field=field)
+
+
+@contextmanager
+def _fixture_stage(stage: str, *, authentication_errors: tuple[type[Exception], ...] = ()):
+    """Identify the operation that failed, not an inferred cause from error text."""
+    try:
+        yield
+    except FixtureExportError as exc:
+        if exc.stage == "UNCLASSIFIED":
+            exc.stage = stage
+        raise
+    except Exception as exc:
+        code = "FAILED"
+        if authentication_errors and isinstance(exc, authentication_errors):
+            stage, code = "VCENTER_AUTHENTICATION", "AUTH_REJECTED"
+        elif isinstance(exc, subprocess.TimeoutExpired):
+            code = "TIMEOUT"
+        elif stage in {"VCENTER_SESSION", "VCENTER_READ", "OPS_AUTHENTICATION", "OPS_READ"}:
+            from requests.exceptions import ConnectionError as RequestConnectionError, Timeout
+            if isinstance(exc, (ConnectionError, TimeoutError, socket.gaierror, ssl.SSLError,
+                                RequestConnectionError, Timeout)):
+                stage = "VCENTER_CONNECTION" if stage.startswith("VCENTER") else "OPS_CONNECTION"
+                code = "TIMEOUT" if isinstance(exc, (TimeoutError, Timeout)) else "TRANSPORT_ERROR"
+        # Cause stays in process only. CLI never prints it, its type, or repr/str.
+        raise FixtureExportError("Fixture operation failed", stage=stage, code=code) from exc
 
 
 def _fp(value: Any) -> Optional[str]:
@@ -771,12 +850,346 @@ def _write_ops_uuid_handoff(path: Path, resource_id: str) -> None:
     _write_report(path, {"RDM_PROBE_OPS_RESOURCE_IDS": [resource_id]})
 
 
+def _fixture_output_path() -> Path:
+    """Fixed, ignored, owner-only destination; check before accessing inventory."""
+    root = Path(__file__).resolve().parents[1]
+    path = root / "tmp/rdm-lab-probes/rdm-fixture-vm-71.json"
+    for parent in (root / "tmp", path.parent):
+        if parent.is_symlink() or not parent.is_dir():
+            raise FixtureExportError("Fixture scratch directory unavailable")
+    info = path.parent.stat()
+    if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+        raise FixtureExportError("Fixture scratch directory must be owned by this user with mode 0700")
+    if path.exists() or path.is_symlink():
+        raise FixtureExportError("Fixture output already exists; refusing overwrite")
+    relative = path.relative_to(root).as_posix()
+    ignored = subprocess.run(["git", "check-ignore", "--quiet", "--", relative], cwd=root,
+                             capture_output=True, timeout=15)
+    tracked = subprocess.run(["git", "ls-files", "--error-unmatch", "--", relative], cwd=root,
+                             capture_output=True, timeout=15)
+    if ignored.returncode != 0 or tracked.returncode != 1:
+        raise FixtureExportError("Fixture output is not verified ignored and untracked")
+    return path
+
+
+@contextmanager
+def _fixture_validator():
+    """Compile the actual E2.1 parser; only send sensitive payload over stdin."""
+    root = Path(__file__).resolve().parents[1]
+    source = root / "content/sdk-adapters/rdm-topology-poc/src/com/vcfcf/adapters/rdmtopologypoc"
+    sdk = Path(os.environ.get("VCFCF_SDK_JAR", ""))
+    if not sdk.is_file():
+        raise FixtureExportError("Offline SDK unavailable", stage="JAVA_PARSER_SETUP", code="SDK_UNAVAILABLE")
+    if not shutil.which("javac") or not shutil.which("java"):
+        raise FixtureExportError("Offline Java tools unavailable", stage="JAVA_PARSER_SETUP", code="JAVA_UNAVAILABLE")
+    files = [source / f"{name}.java" for name in
+             ("RuntimeFixture", "ForeignVmIdentity", "RdmMappingIdentity")]
+    files.append(root / "scripts/RdmFixtureValidate.java")
+    if not all(path.is_file() for path in files):
+        raise FixtureExportError("Actual E2.1 parser source unavailable", stage="JAVA_PARSER_SETUP", code="PARSER_SOURCE_UNAVAILABLE")
+    with tempfile.TemporaryDirectory(prefix="rdm-fixture-validator-") as build:
+        with _fixture_stage("JAVA_PARSER_SETUP"):
+            compiled = subprocess.run(["javac", "-proc:none", "-cp", str(sdk), "-d", build,
+                                       *(str(path) for path in files)], capture_output=True, timeout=60)
+        if compiled.returncode != 0:
+            raise FixtureExportError("Offline Java parser compilation failed", stage="JAVA_PARSER_SETUP", code="COMPILE_FAILED")
+
+        def validate(payload: bytes) -> None:
+            with _fixture_stage("JAVA_PARSER_VALIDATION"):
+                result = subprocess.run(["java", "-cp", os.pathsep.join((build, str(sdk))),
+                                         "com.vcfcf.adapters.rdmtopologypoc.RdmFixtureValidate"],
+                                        input=payload, capture_output=True, timeout=30)
+            if result.returncode != 0 or result.stdout != b"VALID\n":
+                raise FixtureExportError("Actual Java runtime fixture parser rejected capture", stage="JAVA_PARSER_VALIDATION", code="PARSER_REJECTED")
+        yield validate
+
+
+def _capture_soap_fixture() -> dict[str, Any]:
+    """Only vm-71, with instance UUID and stable pre/post configuration snapshots."""
+    with _fixture_stage("VCENTER_CONFIGURATION"):
+        from pyVim.connect import Disconnect, SmartConnect
+        from pyVmomi import vim
+
+    host, user, password = (os.environ.get(f"RDM_PROBE_VCENTER_{key}", "")
+                            for key in ("HOST", "USER", "PASSWORD"))
+    if not all((host, user, password)):
+        raise FixtureExportError("Missing configured vCenter probe credentials", stage="VCENTER_CONFIGURATION", code="MISSING_CONFIGURATION")
+    verify = os.environ.get("RDM_PROBE_VCENTER_VERIFY_SSL", "true").lower() not in {"0", "false", "no", "off"}
+    instance = None
+    try:
+        auth_errors = (vim.fault.InvalidLogin, vim.fault.NotAuthenticated)
+        with _fixture_stage("VCENTER_SESSION", authentication_errors=auth_errors):
+            instance = SmartConnect(host=host, user=user, pwd=password, disableSslCertValidation=not verify,
+                                    httpConnectionTimeout=30)
+        with _fixture_stage("VCENTER_READ", authentication_errors=auth_errors):
+            content = instance.RetrieveContent()
+            vc = _get(content.about, "instanceUuid")
+            vm = vim.VirtualMachine("vm-71", instance._stub)
+            paths = ["config.instanceUuid", "config.changeVersion", "runtime.host", "config.hardware.device"]
+            before = _collect_properties(content.propertyCollector, [vm], vim.VirtualMachine, paths)["vm-71"]
+            after = _collect_properties(content.propertyCollector, [vm], vim.VirtualMachine, paths[:-1])["vm-71"]
+            with _fixture_stage("VM_IDENTITY_CORRELATION"):
+                _validate_fixture_snapshot(before, after)
+            devices = before["config.hardware.device"]
+            if not isinstance(devices, (list, tuple)):
+                _fixture_schema_failure("VM_DEVICES_NOT_ARRAY", "vcenter.config.hardware.device")
+            disks = [device for device in devices if isinstance(device, vim.vm.device.VirtualDisk)
+                     and isinstance(_get(device, "backing"), vim.vm.device.VirtualDisk.RawDiskMappingVer1BackingInfo)]
+            return _single_rdm_fixture_mapping(vc, before["config.instanceUuid"], disks)
+    finally:
+        if instance is not None:
+            try:
+                Disconnect(instance)
+            except Exception:
+                pass  # Session cleanup must not mask the primary collection result.
+
+
+def _validate_fixture_snapshot(before: dict[str, Any], after: dict[str, Any]) -> None:
+    for key in ("config.instanceUuid", "config.changeVersion"):
+        if not isinstance(before.get(key), str) or not before[key] or before[key] != after.get(key):
+            raise FixtureExportError("VM identity or configuration snapshot incomplete or changed")
+    host = _get(before.get("runtime.host"), "_moId")
+    if not host or host != _get(after.get("runtime.host"), "_moId"):
+        raise FixtureExportError("VM host snapshot incomplete or changed")
+
+
+def _single_rdm_fixture_mapping(vc: Any, vm_uuid: Any, disks: list[Any]) -> dict[str, Any]:
+    if len(disks) != 1:
+        raise FixtureExportError("Capture requires exactly one identified RDM", stage="RDM_AMBIGUITY",
+                                 code="NO_RDM" if not disks else "MULTIPLE_RDMS")
+    lun = _get(_get(disks[0], "backing"), "lunUuid")
+    key = _get(disks[0], "key")
+    if not isinstance(lun, str) or not lun:
+        _fixture_schema_failure("RDM_LUN_IDENTITY_INVALID", "vcenter.rdm.backing.lunUuid")
+    if type(key) is not int or not 0 < key <= 2147483647:
+        _fixture_schema_failure("RDM_DISK_KEY_INVALID", "mapping.virtual_disk_key")
+    return {"vm_moid": "vm-71", "vcenter_instance_uuid": vc,
+            "vm_instance_uuid": vm_uuid, "virtual_disk_key": str(key)}
+
+
+def _fixture_resource_key(resource: Any) -> dict[str, Any]:
+    """Project schema identity members, never omit an identifier or default a flag."""
+    base = "resource.resourceKey"
+    if not isinstance(resource, dict):
+        _fixture_schema_failure("RESOURCE_NOT_OBJECT", "resource")
+    if "resourceKey" not in resource:
+        _fixture_schema_failure("RESOURCE_KEY_MISSING", base)
+    key = resource["resourceKey"]
+    if not isinstance(key, dict):
+        _fixture_schema_failure("RESOURCE_KEY_NOT_OBJECT", base)
+    if key.get("adapterKindKey") != "VMWARE":
+        _fixture_schema_failure("ADAPTER_KIND_INVALID", base + ".adapterKindKey")
+    if key.get("resourceKindKey") != "VirtualMachine":
+        _fixture_schema_failure("RESOURCE_KIND_INVALID", base + ".resourceKindKey")
+    if "name" not in key:
+        _fixture_schema_failure("RESOURCE_NAME_MISSING", base + ".name")
+    if not isinstance(key["name"], str) or not key["name"]:
+        _fixture_schema_failure("RESOURCE_NAME_INVALID", base + ".name")
+    if "resourceIdentifiers" not in key:
+        _fixture_schema_failure("IDENTIFIERS_MISSING", base + ".resourceIdentifiers")
+    identifiers = key["resourceIdentifiers"]
+    if not isinstance(identifiers, list):
+        _fixture_schema_failure("IDENTIFIERS_NOT_ARRAY", base + ".resourceIdentifiers")
+    if not identifiers:
+        _fixture_schema_failure("IDENTIFIERS_EMPTY", base + ".resourceIdentifiers")
+    projected = []
+    names = set()
+    for item in identifiers:
+        field = base + ".resourceIdentifiers[]"
+        if not isinstance(item, dict):
+            _fixture_schema_failure("IDENTIFIER_NOT_OBJECT", field)
+        if "identifierType" not in item:
+            _fixture_schema_failure("IDENTIFIER_TYPE_MISSING", field + ".identifierType")
+        kind = item["identifierType"]
+        if not isinstance(kind, dict):
+            _fixture_schema_failure("IDENTIFIER_TYPE_NOT_OBJECT", field + ".identifierType")
+        if "name" not in kind:
+            _fixture_schema_failure("IDENTIFIER_NAME_MISSING", field + ".identifierType.name")
+        name = kind["name"]
+        if not isinstance(name, str) or not name:
+            _fixture_schema_failure("IDENTIFIER_NAME_INVALID", field + ".identifierType.name")
+        if name in names:
+            _fixture_schema_failure("IDENTIFIER_NAME_DUPLICATE", field + ".identifierType.name")
+        if "isPartOfUniqueness" not in kind:
+            _fixture_schema_failure("IDENTIFIER_UNIQUENESS_MISSING", field + ".identifierType.isPartOfUniqueness")
+        unique = kind["isPartOfUniqueness"]
+        if type(unique) is not bool:
+            _fixture_schema_failure("IDENTIFIER_UNIQUENESS_NOT_BOOLEAN", field + ".identifierType.isPartOfUniqueness")
+        if "value" not in item:
+            _fixture_schema_failure("IDENTIFIER_VALUE_MISSING", field + ".value")
+        value = item["value"]
+        if value is None:
+            _fixture_schema_failure("IDENTIFIER_VALUE_NULL", field + ".value")
+        if not isinstance(value, str):
+            _fixture_schema_failure("IDENTIFIER_VALUE_NOT_STRING", field + ".value")
+        # The SDK retains "" exactly, but rejects null entries. Only explicit
+        # nonunique empty strings are supported; never default a missing flag,
+        # fill a missing value, or normalize null into an empty string.
+        if not value and unique:
+            _fixture_schema_failure("IDENTIFIER_VALUE_EMPTY", field + ".value")
+        names.add(name)
+        projected.append({"identifierType": {"name": name, "isPartOfUniqueness": unique}, "value": value})
+    return {"adapterKindKey": key["adapterKindKey"], "resourceKindKey": key["resourceKindKey"],
+            "name": key["name"], "resourceIdentifiers": projected}
+
+
+def _fixture_from_resources(resources: list[Any], mapping: dict[str, Any]) -> dict[str, Any]:
+    if mapping.get("vm_moid") != "vm-71":
+        raise FixtureExportError("Unexpected fixture VM")
+    matches = []
+    for resource in resources:
+        with _fixture_stage("FIXTURE_SCHEMA_VALIDATION"):
+            key = _fixture_resource_key(resource)  # Any malformed inventory fails closed.
+        identifiers = {item["identifierType"]["name"]: item for item in key["resourceIdentifiers"]}
+        moid = identifiers.get("VMEntityObjectID")
+        vcid = identifiers.get("VMEntityVCID")
+        if not moid or not vcid:
+            raise FixtureExportError("Unscoped Operations VM response")
+        if moid["value"] == mapping["vm_moid"] and vcid["value"] == mapping["vcenter_instance_uuid"]:
+            if not all(item["identifierType"]["isPartOfUniqueness"] for item in (moid, vcid)):
+                raise FixtureExportError("VM scope is not uniqueness-bearing")
+            matches.append(key)
+    if len(matches) != 1:
+        raise FixtureExportError("Operations scoped VM match is absent or ambiguous")
+    return {"foreign_vm": matches[0], "mapping": {key: mapping[key] for key in
+            ("vcenter_instance_uuid", "vm_instance_uuid", "virtual_disk_key")}}
+
+
+def _capture_fixture_resources(client: Any) -> list[dict[str, Any]]:
+    resources: list[dict[str, Any]] = []
+    expected = None
+    seen = set()
+    for page in range(OPS_VM_DISCOVERY_MAX_PAGES):
+        with _fixture_stage("OPS_READ"):
+            response = client._request("GET", "/api/resources", params={"adapterKind": "VMWARE",
+                "resourceKind": "VirtualMachine", "page": page, "pageSize": OPS_VM_DISCOVERY_PAGE_SIZE}, timeout=30)
+        if response.status_code == 401:
+            raise FixtureExportError("Operations request not authenticated", stage="OPS_AUTHENTICATION", code="AUTH_REJECTED")
+        if response.status_code == 403:
+            raise FixtureExportError("Operations request forbidden", stage="OPS_AUTHORIZATION", code="HTTP_ERROR")
+        if response.status_code != 200:
+            raise FixtureExportError("Operations VM listing failed", stage="OPS_READ", code="HTTP_ERROR")
+        with _fixture_stage("FIXTURE_SCHEMA_VALIDATION"):
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise FixtureExportError("Operations response JSON unavailable", stage="FIXTURE_SCHEMA_VALIDATION",
+                                         code="OPS_RESPONSE_JSON_INVALID", field="operations.response") from exc
+        rows = payload.get("resourceList") if isinstance(payload, dict) else None
+        info = payload.get("pageInfo") if isinstance(payload, dict) else None
+        total = info.get("totalCount") if isinstance(info, dict) else None
+        if not isinstance(rows, list) or type(total) is not int or total < 0 or (expected is not None and expected != total):
+            raise FixtureExportError("Operations pagination incomplete or unstable")
+        expected = total
+        for row in rows:
+            rid = row.get("identifier") if isinstance(row, dict) else None
+            if not isinstance(rid, str) or not rid or rid in seen:
+                raise FixtureExportError("Operations inventory contains invalid or repeated resources")
+            seen.add(rid)
+        resources.extend(rows)
+        if len(resources) == total:
+            return resources
+        if not rows or len(resources) > total:
+            raise FixtureExportError("Operations inventory count mismatch")
+    raise FixtureExportError("Operations inventory page limit exceeded")
+
+
+def _write_fixture(payload: bytes) -> Path:
+    path = _fixture_output_path()
+    directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    fd = None
+    created = False
+    identity = None
+    try:
+        info = os.fstat(directory_fd)
+        if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+            raise FixtureExportError("Unsafe fixture directory")
+        fd = os.open(path.name, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory_fd)
+        created = True
+        identity = os.fstat(fd)
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w+b") as output:
+            fd = None
+            output.write(payload)
+            output.flush()
+            os.fsync(output.fileno())
+            output.seek(0)
+            if output.read() != payload or stat.S_IMODE(os.fstat(output.fileno()).st_mode) != 0o600:
+                raise FixtureExportError("Fixture write verification failed")
+        return path
+    except BaseException:
+        if fd is not None:
+            os.close(fd)
+        if created:
+            current = os.stat(path.name, dir_fd=directory_fd, follow_symlinks=False)
+            if identity is None or (identity.st_dev, identity.st_ino) != (current.st_dev, current.st_ino):
+                raise FixtureExportError("Cannot verify failed fixture ownership for cleanup") from None
+            os.unlink(path.name, dir_fd=directory_fd)
+        raise
+    finally:
+        os.close(directory_fd)
+
+
+def _export_fixture(profile: str) -> None:
+    """No reports or payload logs; only the fixed local handoff after Java acceptance."""
+    if profile != "devel":
+        raise FixtureExportError("Fixture export is restricted to the development profile",
+                                 stage="CONFIGURATION", code="UNSUPPORTED_PROFILE")
+    with _fixture_stage("OUTPUT_FILE"):
+        _fixture_output_path()
+    with _fixture_stage("OPS_CONFIGURATION"):
+        from vcfcf_common.client import VCFOpsClient
+        client = VCFOpsClient.from_env(profile, default_profile="devel")
+    if not all(os.environ.get(f"RDM_PROBE_VCENTER_{key}") for key in ("HOST", "USER", "PASSWORD")):
+        raise FixtureExportError("Missing configured vCenter probe credentials",
+                                 stage="VCENTER_CONFIGURATION", code="MISSING_CONFIGURATION")
+    cleanup = {"attempted": False, "status": "not_needed"}
+    with _fixture_stage("JAVA_PARSER_SETUP"), _fixture_validator() as validate:
+        try:
+            with _fixture_stage("VCENTER_READ"):
+                mapping = _capture_soap_fixture()
+            # Explicitly separate initial token acquisition from inventory reads.
+            # Failure here identifies the operation, not necessarily bad credentials.
+            with _fixture_stage("OPS_AUTHENTICATION"):
+                client.authenticate()
+            with _fixture_stage("OPS_READ"):
+                resources = _capture_fixture_resources(client)
+            with _fixture_stage("VM_IDENTITY_CORRELATION"):
+                fixture = _fixture_from_resources(resources, mapping)
+            with _fixture_stage("FIXTURE_SCHEMA_VALIDATION"):
+                try:
+                    payload = (json.dumps(fixture, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+                except (TypeError, ValueError, UnicodeError) as exc:
+                    raise FixtureExportError("Fixture serialization unavailable", stage="FIXTURE_SCHEMA_VALIDATION",
+                                             code="FIXTURE_SERIALIZATION_FAILED", field="fixture") from exc
+            with _fixture_stage("JAVA_PARSER_VALIDATION"):
+                validate(payload)
+            with _fixture_stage("OUTPUT_FILE"):
+                _write_fixture(payload)
+        finally:
+            _release_operations_token(client, cleanup)
+
+
+@contextmanager
+def _private_fixture_capture():
+    """Third-party diagnostics must not disclose endpoint names or raw payloads."""
+    previous = logging.root.manager.disable
+    try:
+        logging.disable(logging.CRITICAL)
+        with open(os.devnull, "w", encoding="utf-8") as sink, warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with redirect_stdout(sink), redirect_stderr(sink):
+                yield
+    finally:
+        logging.disable(previous)
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", action="store_true", help="print the offline execution plan (default)")
     parser.add_argument("--execute", action="store_true", help="allow a live read-only probe")
     parser.add_argument("--allow-read-only-lab", action="store_true", help="second explicit acknowledgement required with --execute")
-    parser.add_argument("--mode", choices=("vcenter-soap", "vim-json", "ops", "ops-vm-discovery", "soap-ops", "both"), default="both")
+    parser.add_argument("--mode", choices=("vcenter-soap", "vim-json", "ops", "ops-vm-discovery", "soap-ops", "both", "fixture-export"), default="both")
     parser.add_argument("--profile", default="devel", help="VCF Operations profile for --mode ops")
     parser.add_argument("--output", type=Path, help="optional sanitized JSON report; never use a tracked path")
     parser.add_argument("--handoff-output", type=Path,
@@ -785,9 +1198,25 @@ def main(argv: Optional[list[str]] = None) -> int:
     if not args.execute:
         print("OFFLINE PLAN: no network calls. Re-run only after approval with --execute --allow-read-only-lab.")
         print("Modes: vcenter-soap, vim-json, ops, ops-vm-discovery, soap-ops, both. VIM JSON uses an environment-only session header.")
+        print("fixture-export: development-only secure runtime fixture capture to its fixed local handoff.")
         return 0
     if not args.allow_read_only_lab:
         parser.error("--execute requires --allow-read-only-lab")
+    if args.mode == "fixture-export":
+        if args.output or args.handoff_output:
+            parser.error("fixture-export uses only its fixed secure output")
+        try:
+            with _private_fixture_capture():
+                _export_fixture(args.profile)
+        except Exception as exc:
+            stage = exc.stage if isinstance(exc, FixtureExportError) and exc.stage in FixtureExportError.STAGES else "UNCLASSIFIED"
+            code = exc.code if isinstance(exc, FixtureExportError) and exc.code in FixtureExportError.CODES else "FAILED"
+            field = exc.field if isinstance(exc, FixtureExportError) and exc.field in FixtureExportError.FIELDS else None
+            location = f"; field={field}" if field is not None else ""
+            print(f"Fixture export failed: stage={stage}; code={code}{location}; no success claimed.", file=sys.stderr)
+            return 2
+        print("Fixture ready: tmp/rdm-lab-probes/rdm-fixture-vm-71.json; mode 0600; Java parser VALID; one scoped VM and one RDM.")
+        return 0
     if args.handoff_output and args.mode != "ops-vm-discovery":
         parser.error("--handoff-output requires --mode ops-vm-discovery")
     report: dict[str, Any] = {"schema_version": SCHEMA_VERSION, "mode": args.mode, "started_at_epoch_ms": int(time.time() * 1000)}

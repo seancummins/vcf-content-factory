@@ -1,5 +1,15 @@
 # RDM topology SDK POC — architecture decision record
 
+**Evidence update:** the build-6 development POC now has an
+[operator-confirmed live VM-parent topology result](vsphere-rdm-topology-poc-deployment-experiment.md#e2-closeout--operator-confirmed-live-result).
+The original design, SDK-availability blocker and deployment-proof questions
+below are retained as historical context. UI visibility and persistence over
+subsequent checks were observed; timestamped cycle/API persistence, failover
+and cleanup remain unverified. The
+[next LUN milestone](vsphere-rdm-topology-lab-validation.md#next-proposed-increment--rdm-to-lun-identity)
+retains `CanonicalLun` as a conditional design target, not an assumed existing
+Operations resource. No production collector or LUN feature has been added.
+
 ## Decision
 
 Implement a deliberately minimal Tier 2 proof only after the local Integration
