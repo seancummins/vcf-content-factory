@@ -2365,7 +2365,9 @@ class PakCompareGateError(SdkBuildError):
 
 
 def _run_pak_compare(pak_path: Path, *, release_build: bool = False,
-                     warn_only: bool = False) -> None:
+                     warn_only: bool = False, policy: str = "legacy",
+                     reference_pak: Optional[Path] = None,
+                     reference_sha256: Optional[str] = None) -> None:
     """Run pak-compare against the SDK reference paks and gate on the result.
 
     Every ``*.pak`` under the reference directory is compared and the gate
@@ -2382,14 +2384,23 @@ def _run_pak_compare(pak_path: Path, *, release_build: bool = False,
     logged and skipped, because a factory checkout has no reference pak
     until one is placed under tmp/reference_paks/.
     """
-    sdk_paks = sorted(_REFERENCES_DIR.glob("*.pak")) if _REFERENCES_DIR.is_dir() else []
+    if release_build and warn_only:
+        raise PakCompareGateError("pak-compare warn-only mode is not allowed on a release build")
+    if policy not in {"legacy", "upgrade", "structural"}:
+        raise PakCompareGateError("unknown pak-compare policy")
+    if policy == "structural" and (not reference_pak or not reference_sha256):
+        raise PakCompareGateError("structural build gate requires exact reference PAK and SHA-256")
+    if reference_sha256 and not reference_pak:
+        raise PakCompareGateError("reference SHA-256 requires exact reference PAK")
+    sdk_paks = [Path(reference_pak)] if reference_pak else (sorted(_REFERENCES_DIR.glob("*.pak")) if _REFERENCES_DIR.is_dir() else [])
     if not sdk_paks:
         msg = (
             f"pak-compare: no reference .pak found in {_REFERENCES_DIR}"
         )
-        if release_build:
+        if release_build or policy != "legacy":
             raise PakCompareGateError(
                 f"{msg}; a release build cannot skip the pak-compare gate."
+                if release_build else f"{msg}; explicit {policy} policy cannot skip evaluation."
             )
         print(f"  {msg}; skipping comparison (dev build).", file=sys.stderr)
         return
@@ -2400,15 +2411,21 @@ def _run_pak_compare(pak_path: Path, *, release_build: bool = False,
         file=sys.stderr,
     )
     try:
-        from .pak_compare import compare_pak_directory
+        from .pak_compare import compare_pak_directory, compare_paks, format_report
 
         # Gate on the CLOSEST reference (compare_pak_directory sorts
         # closest-first), the same rule the pak-compare CLIs use.
-        best_ref, result = compare_pak_directory(pak_path, _REFERENCES_DIR)[0]
+        if reference_pak:
+            best_ref = Path(reference_pak)
+            result = compare_paks(pak_path, best_ref, policy=policy, reference_sha256=reference_sha256)
+        else:
+            best_ref, result = compare_pak_directory(pak_path, _REFERENCES_DIR, policy=policy)[0]
+        if policy != "legacy":
+            print(format_report(result), file=sys.stderr)
         print(f"  pak-compare: closest reference {best_ref.name}", file=sys.stderr)
     except Exception as exc:
         msg = f"pak-compare: failed to run comparison: {exc}"
-        if warn_only:
+        if warn_only and policy == "legacy":
             print(f"  WARNING (warn-only): {msg}", file=sys.stderr)
             return
         raise PakCompareGateError(msg) from exc
@@ -2421,7 +2438,7 @@ def _run_pak_compare(pak_path: Path, *, release_build: bool = False,
         )
         for item in blockings:
             print(f"    BLOCKING: {item.message}", file=sys.stderr)
-        if warn_only:
+        if warn_only and policy == "legacy":
             print(
                 "  pak-compare: warn-only mode, build NOT failed. This pak "
                 "failed the install gate and must not be installed or shipped.",
@@ -3204,7 +3221,10 @@ def _generate_docs(project_dir: Path, version_string: str) -> None:
 
 
 def build_sdk_pak(project_dir: Path, output_dir: Optional[Path] = None,
-                  *, pak_compare_warn_only: bool = False) -> Path:
+                  *, pak_compare_warn_only: bool = False,
+                  pak_compare_policy: str = "legacy",
+                  pak_compare_reference: Optional[Path] = None,
+                  pak_compare_reference_sha256: Optional[str] = None) -> Path:
     """End-to-end Tier 2 SDK adapter build pipeline.
 
     Args:
@@ -3382,13 +3402,18 @@ def build_sdk_pak(project_dir: Path, output_dir: Optional[Path] = None,
         pak_path,
         release_build=release_build,
         warn_only=pak_compare_warn_only,
+        policy=pak_compare_policy,
+        reference_pak=pak_compare_reference,
+        reference_sha256=pak_compare_reference_sha256,
     )
 
     return pak_path
 
 
 def _gate_built_pak(pak_path: Path, *, release_build: bool,
-                    warn_only: bool) -> None:
+                    warn_only: bool, policy: str = "legacy",
+                    reference_pak: Optional[Path] = None,
+                    reference_sha256: Optional[str] = None) -> None:
     """Run the pak-compare gate on a freshly built pak.
 
     On failure a release build's pak is deleted, so no later CI step (an
@@ -3400,6 +3425,9 @@ def _gate_built_pak(pak_path: Path, *, release_build: bool,
             pak_path,
             release_build=release_build,
             warn_only=warn_only,
+            policy=policy,
+            reference_pak=reference_pak,
+            reference_sha256=reference_sha256,
         )
     except PakCompareGateError:
         if release_build:

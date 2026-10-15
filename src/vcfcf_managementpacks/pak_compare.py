@@ -22,7 +22,9 @@ Wire format references:
 from __future__ import annotations
 
 import io
+import hashlib
 import json
+import re
 import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -59,10 +61,13 @@ class CompareResult:
         factory_label: str,
         reference_label: str,
         findings: List[Finding],
+        *, policy: str = "legacy", metadata: Optional[Dict[str, str]] = None,
     ) -> None:
         self.factory_label = factory_label
         self.reference_label = reference_label
         self.findings = findings
+        self.policy = policy
+        self.metadata = metadata or {}
 
     def blocking(self) -> List[Finding]:
         return [f for f in self.findings if f.severity == BLOCKING]
@@ -1153,7 +1158,239 @@ def _compare_template_json(
 # Top-level comparison entry point
 # ---------------------------------------------------------------------------
 
-def compare_paks(factory_pak: Path, reference_pak: Path) -> CompareResult:
+POLICIES = ("legacy", "upgrade", "structural")
+SCHEMA_CONTRACT = "describeSchema 6.3.0 bounded credential contract; cleanroom-spec/02a Pass 10"
+
+
+def _credential_contract(pak: Path, side: str, findings: List[Finding]) -> Optional[Dict[str, Any]]:
+    """Validate declaration integrity, never reading or reporting credential values.
+
+    This deliberately bounded reader is not a complete XSD validator. C-F* are
+    conservative factory policies; C-S* check the documented schema grammar.
+    """
+    def fail(code: str, path: str, reason: str) -> None:
+        findings.append(Finding(BLOCKING, code, f"{side}:{path}: {reason}"))
+
+    def boolean(el: ET.Element, attr: str, path: str, default=None):
+        if attr not in el.attrib:
+            return default
+        value = el.attrib[attr].strip(" \t\r\n")
+        if value not in {"true", "false", "1", "0"}:
+            fail("C-SBOOL", path + "/@" + attr, "invalid XML Schema boolean")
+            return None
+        return value in {"true", "1"}
+
+    def required(el: ET.Element, attrs: Tuple[str, ...], path: str) -> None:
+        for attr in attrs:
+            value = el.get(attr, "").strip(" \t\r\n")
+            if not value:
+                fail("C-SATTR", path + "/@" + attr, "missing/empty required attribute")
+            elif attr in {"nameKey", "dispOrder", "version"} and not re.fullmatch(r"[+-]?[0-9]+", value):
+                fail("C-SATTR", path + "/@" + attr, "expected XML Schema integer")
+
+    def archive(data, label):
+        with zipfile.ZipFile(data) as zf:
+            names = [i.filename for i in zf.infolist()]
+            if len(names) != len(set(names)):
+                fail("C-FARCHIVE", label, "duplicate archive members")
+            if zf.testzip() is not None:
+                fail("C-FARCHIVE", label, "archive CRC failure")
+            return {n: zf.read(n) for n in names if not n.endswith("/")}
+
+    try:
+        outer = archive(pak, "/")
+        manifest = json.loads(outer["manifest.txt"])
+        nested = archive(io.BytesIO(outer["adapters.zip"]), "/adapters.zip")
+        descs = [n for n in nested if n.endswith("/conf/describe.xml")]
+        if len(descs) != 1:
+            fail("C-FADAPTER", "/adapters.zip", "exactly one adapter descriptor required")
+            return None
+        dirname = descs[0].split("/")[0]
+        # Container SDK packages declare a .conf entry point, not a Java JAR
+        # (vcommunity_upgrade_path_experiment.md, architecture table).
+        if descs[0] != f"{dirname}/conf/describe.xml" or dirname.endswith("_adapter3") or f"{dirname}.jar" not in nested or f"{dirname}.conf" in nested or manifest.get("adapters", ["adapters.zip"]) != ["adapters.zip"]:
+            fail("C-FFAMILY", "/adapters.zip", "unsupported package family; native Java layout required")
+        root = ET.fromstring(nested[descs[0]])
+        for el in root.iter():
+            if el.tag.startswith("{"):
+                namespace, tag = el.tag[1:].split("}", 1)
+                if namespace not in {"http://schemas.vmware.com/vcops/schema", "http://schemas.vmware.com/vcops/describe"}:
+                    fail("C-FXML", "/AdapterKind", "unsupported XML namespace")
+                el.tag = tag
+        if root.tag != "AdapterKind":
+            fail("C-FADAPTER", "/", "expected AdapterKind root")
+        required(root, ("key", "nameKey", "version"), "/AdapterKind")
+        identity = root.get("key")
+        if manifest.get("adapter_kinds") != [identity] or dirname != identity:
+            fail("C-FIDENTITY", "/manifest.txt/adapter_kinds", "manifest, descriptor and Java directory identities must agree")
+        containers = root.findall("CredentialKinds")
+        if len(containers) > 1:
+            fail("C-SCONTAINER", "/AdapterKind/CredentialKinds", "duplicate credential containers")
+        kinds: Dict[str, Dict] = {}
+        for container in containers:
+            if not list(container):
+                fail("C-FNOAUTH", "/AdapterKind/CredentialKinds", "factory no-auth policy: omit an empty container (XSD permits it)")
+            for ck in container:
+                path = "/AdapterKind/CredentialKinds/CredentialKind"
+                if ck.tag != "CredentialKind":
+                    fail("C-SCHILD", path, "unsupported credential child")
+                    continue
+                required(ck, ("key", "nameKey"), path)
+                key = ck.get("key", "")
+                if key in kinds:
+                    fail("C-SKEY", path + "/@key", "duplicate credential-kind key")
+                fields = {}
+                if not list(ck):
+                    fail("C-SFIELD", path, "credential kind requires at least one field")
+                for field in ck:
+                    fp = path + "/CredentialField"
+                    if field.tag != "CredentialField":
+                        fail("C-SCHILD", fp, "unsupported field child")
+                        continue
+                    required(field, ("key", "nameKey", "dispOrder"), fp)
+                    fk = field.get("key", "")
+                    if fk in fields:
+                        fail("C-SKEY", fp + "/@key", "duplicate credential-field key")
+                    typ = field.get("type")
+                    if typ is not None and typ not in {"string", "integer", "host", "ip"}:
+                        fail("C-STYPE", fp + "/@type", "invalid credential-field type")
+                    req = boolean(field, "required", fp)  # no documented default
+                    mask = boolean(field, "password", fp, False)
+                    boolean(field, "enum", fp, False)
+                    for child in field:
+                        if child.tag != "enum":
+                            fail("C-SCHILD", fp, "unsupported field child")
+                        else:
+                            if "value" not in child.attrib:
+                                fail("C-SATTR", fp + "/enum/@value", "missing required attribute")
+                            boolean(child, "default", fp + "/enum")
+                    fields[fk] = {"type": typ, "required": req, "password": mask}
+                kinds[key] = fields
+        rcontainers = root.findall("ResourceKinds")
+        if len(rcontainers) != 1:
+            fail("C-FRESOURCE", "/AdapterKind/ResourceKinds", "exactly one ResourceKinds container required")
+        resources = {}
+        instances = []
+        used = set()
+        for block in rcontainers:
+            for rk in block:
+                rp = "/AdapterKind/ResourceKinds/ResourceKind"
+                if rk.tag != "ResourceKind":
+                    fail("C-SCHILD", rp, "unsupported resource child")
+                    continue
+                required(rk, ("key", "nameKey"), rp)
+                key = rk.get("key", "")
+                if key in resources:
+                    fail("C-SKEY", rp + "/@key", "duplicate resource-kind key")
+                refs = ()
+                if "credentialKind" in rk.attrib:
+                    refs = tuple(token.strip(" \t\r\n") for token in rk.attrib["credentialKind"].split(","))
+                    if not all(refs) or len(refs) != len(set(refs)) or any(x not in kinds for x in refs):
+                        fail("C-SBINDING", rp + "/@credentialKind", "empty, duplicate or unresolved credential reference")
+                    used.update(refs)
+                req = boolean(rk, "isCredentialRequired", rp, True)
+                resources[key] = {"bindings": refs, "required": req}
+                typ = rk.get("type")
+                if typ is not None:
+                    value = typ.strip(" \t\r\n")
+                    if not re.fullmatch(r"[+-]?[0-9]+", value):
+                        fail("C-SATTR", rp + "/@type", "expected XML Schema integer")
+                    else:
+                        if int(value) not in {1, 2, 3, 4, 7, 8}:
+                            fail("C-SATTR", rp + "/@type", "unsupported ResourceKind type enumeration")
+                        rk.set("type", str(int(value)))
+                if rk.get("type") == "7":
+                    instances.append(key)
+                    if not refs and req is not False:
+                        fail("C-FREQUIRED", rp + "/@credentialKind", "factory configuration policy: unbound type-7 instance requires explicit isCredentialRequired=false (omission defaults true)")
+        if instances != [identity]:
+            fail("C-FINSTANCE", "/AdapterKind/ResourceKinds", "exactly one type-7 resource matching adapter identity required")
+        for key in kinds.keys() - used:
+            findings.append(Finding(WARNING, "C-UNBOUND", f"{side}:/AdapterKind/CredentialKinds: valid credential declaration is unbound"))
+        return {"identity": identity, "kinds": kinds, "resources": resources, "root": root}
+    except (OSError, KeyError, ValueError, TypeError, AttributeError, ET.ParseError, zipfile.BadZipFile, RuntimeError) as exc:
+        # Do not echo malformed XML or archive contents (may contain secrets).
+        fail("C-FINPUT", "/", f"cannot evaluate package contract ({type(exc).__name__})")
+        return None
+
+
+def _upgrade_contract(candidate: Dict, reference: Dict, findings: List[Finding]) -> None:
+    def regression(path: str, message: str):
+        findings.append(Finding(BLOCKING, "U-CREDENTIAL", "candidate:" + path + ": " + message))
+    for key, old in reference["resources"].items():
+        new = candidate["resources"].get(key)
+        if new is None:
+            if old["bindings"]:
+                regression("/AdapterKind/ResourceKinds", "removed resource credential binding")
+            continue
+        if set(old["bindings"]) - set(new["bindings"]):
+            regression("/AdapterKind/ResourceKinds/@credentialKind", "removed/renamed credential binding")
+        if old["required"] is False and new["required"] is True:
+            regression("/AdapterKind/ResourceKinds/@isCredentialRequired", "optional-to-required instance configuration")
+    for key, fields in reference["kinds"].items():
+        new_fields = candidate["kinds"].get(key)
+        if new_fields is None:
+            regression("/AdapterKind/CredentialKinds", "removed/renamed credential kind")
+            continue
+        for fk, old in fields.items():
+            new = new_fields.get(fk)
+            if new is None:
+                regression("/AdapterKind/CredentialKinds/CredentialKind/CredentialField", "removed/renamed credential field")
+            elif old["type"] != new["type"] or (old["required"] is not True and new["required"] is True) or (old["password"] is True and new["password"] is not True):
+                regression("/AdapterKind/CredentialKinds/CredentialKind/CredentialField", "changed field type, increased requiredness or lost masking")
+        if any(v["required"] is True for fk, v in new_fields.items() if fk not in fields):
+            regression("/AdapterKind/CredentialKinds/CredentialKind/CredentialField", "new required credential field")
+    for key in candidate["kinds"].keys() - reference["kinds"].keys():
+        if any(v["required"] is True for v in candidate["kinds"][key].values()):
+            regression("/AdapterKind/CredentialKinds", "new required credential fields")
+
+
+def compare_paks(factory_pak: Path, reference_pak: Path, *, policy: str = "legacy", reference_sha256: Optional[str] = None) -> CompareResult:
+    """Compare under an explicit policy; historical callers retain legacy behavior.
+
+    Structural relevance approval remains an external governance requirement.
+    The explicit reference digest pins the artifact selected by that review.
+    """
+    if policy not in POLICIES:
+        raise ValueError(f"Unknown comparison policy: {policy}")
+    if policy == "structural" and not reference_sha256:
+        raise ValueError("Structural policy requires an explicit reference SHA-256")
+    factory_pak, reference_pak = Path(factory_pak), Path(reference_pak)
+    if reference_sha256 is not None:
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", reference_sha256) or hashlib.sha256(reference_pak.read_bytes()).hexdigest() != reference_sha256.lower():
+            raise ValueError("Reference SHA-256 mismatch or invalid digest")
+    if policy == "legacy":
+        return _compare_paks_legacy(factory_pak, reference_pak)
+    findings: List[Finding] = []
+    f = _credential_contract(factory_pak, "candidate", findings)
+    r = _credential_contract(reference_pak, "reference", findings)
+    metadata = {"schema-contract": SCHEMA_CONTRACT}
+    for side, path, contract in (("candidate", factory_pak, f), ("reference", reference_pak, r)):
+        if path.is_file():
+            metadata[side + "-sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        metadata[side + "-identity"] = str(contract["identity"]) if contract else "unavailable"
+    if f and r:
+        same = f["identity"] == r["identity"]
+        if (policy == "upgrade" and not same) or (policy == "structural" and same):
+            findings.append(Finding(BLOCKING, "P-IDENTITY", "/AdapterKind/@key: upgrade requires the same adapter; structural requires different adapters"))
+    if not any(x.severity == BLOCKING for x in findings):
+        result = _compare_paks_legacy(factory_pak, reference_pak,
+                                     _normalized_descriptors=(ET.tostring(f["root"]), ET.tostring(r["root"])))
+        if policy == "structural":
+            for finding in result.findings:
+                if finding.code in {"D1", "D2", "D6"}:
+                    finding.severity = INFO
+                    finding.message += ("; /AdapterKind/CredentialKinds or /AdapterKind/ResourceKinds/ResourceKind/@credentialKind: both independent credential contracts valid; optional declarations differ; "
+                                        f"candidate kinds={len(f['kinds'])}, bindings={len(f['resources'][f['identity']]['bindings'])}, required={f['resources'][f['identity']]['required']}; "
+                                        f"reference kinds={len(r['kinds'])}, bindings={len(r['resources'][r['identity']]['bindings'])}, required={r['resources'][r['identity']]['required']}")
+        else:
+            _upgrade_contract(f, r, result.findings)
+        findings.extend(result.findings)
+    findings.sort(key=lambda x: _SEVERITY_ORDER.get(x.severity, 99))
+    return CompareResult(factory_pak.name, reference_pak.name, findings, policy=policy, metadata=metadata)
+
+def _compare_paks_legacy(factory_pak: Path, reference_pak: Path, *,
+                         _normalized_descriptors=None) -> CompareResult:
     """Compare a factory-built pak against a reference pak.
 
     Both paths must exist and be valid .pak (ZIP) files.
@@ -1212,6 +1449,8 @@ def compare_paks(factory_pak: Path, reference_pak: Path) -> CompareResult:
             r_adapters_bytes, f"{r_adapter_dir}/conf/describe.xml"
         )
 
+    if _normalized_descriptors is not None:
+        f_describe_bytes, r_describe_bytes = _normalized_descriptors
     _compare_describe_xml(
         f_describe_bytes, r_describe_bytes,
         f_adapter_dir, r_adapter_dir,
@@ -1259,17 +1498,22 @@ def compare_paks(factory_pak: Path, reference_pak: Path) -> CompareResult:
 def compare_pak_directory(
     factory_pak: Path,
     reference_dir: Path,
+    *, policy: str = "legacy", reference_sha256: Optional[str] = None,
 ) -> List[Tuple[Path, CompareResult]]:
     """Compare a factory pak against every .pak in a directory.
 
     Returns a list of (reference_path, CompareResult) sorted by ascending
     total finding count (closest structural match first).
     """
+    if policy not in {"legacy", "upgrade"}:
+        raise ValueError("Directory selection is supported only for legacy and upgrade policies")
+    if reference_sha256 is not None:
+        raise ValueError("A reference digest requires one explicit reference PAK")
     reference_dir = Path(reference_dir)
     ref_paks = sorted(reference_dir.glob("*.pak"))
     results = []
     for ref_path in ref_paks:
-        result = compare_paks(factory_pak, ref_path)
+        result = compare_paks(factory_pak, ref_path, policy=policy)
         results.append((ref_path, result))
     results.sort(key=lambda x: (len(x[1].blocking()), len(x[1].warnings()), len(x[1].infos())))
     return results
@@ -1285,6 +1529,11 @@ def format_report(result: CompareResult) -> str:
     lines.append("")
     lines.append(f"=== PAK COMPARE: {result.factory_label} vs {result.reference_label} ===")
     lines.append("")
+    if result.policy != "legacy":
+        lines.append(f"Policy: {result.policy}/1")
+        for key, value in result.metadata.items():
+            lines.append(f"{key}: {value}")
+        lines.append("")
 
     blocking = result.blocking()
     warnings = result.warnings()
@@ -1296,21 +1545,23 @@ def format_report(result: CompareResult) -> str:
         if blocking:
             lines.append("BLOCKING (will likely cause install failure):")
             for i, f in enumerate(blocking, 1):
-                lines.append(f"  [B{i}] {f.message}")
+                lines.append(f"  [B{i}] " + (f"{f.code}: " if result.policy != "legacy" else "") + f.message)
             lines.append("")
 
         if warnings:
             lines.append("WARNING (may cause issues):")
             for i, f in enumerate(warnings, 1):
-                lines.append(f"  [W{i}] {f.message}")
+                lines.append(f"  [W{i}] " + (f"{f.code}: " if result.policy != "legacy" else "") + f.message)
             lines.append("")
 
         if infos:
-            lines.append("INFO (cosmetic, unlikely to affect install):")
+            lines.append("INFO (semantic or cosmetic differences):" if result.policy != "legacy" else "INFO (cosmetic, unlikely to affect install):")
             for i, f in enumerate(infos, 1):
-                lines.append(f"  [I{i}] {f.message}")
+                lines.append(f"  [I{i}] " + (f"{f.code}: " if result.policy != "legacy" else "") + f.message)
             lines.append("")
 
     lines.append(f"Score: {result.score_summary()}")
+    if result.policy != "legacy":
+        lines.append("Gate: " + ("FAIL" if blocking else "PASS"))
     lines.append("")
     return "\n".join(lines)

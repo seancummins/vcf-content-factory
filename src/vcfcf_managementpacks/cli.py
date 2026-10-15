@@ -395,7 +395,8 @@ def _apply_sdk_jar_flag(args) -> None:
 
 
 def _cmd_build_sdk_inner(project_dir: Path, output_dir: Path,
-                         pak_compare_warn_only: bool = False) -> int:
+                         pak_compare_warn_only: bool = False,
+                         **comparison_options) -> int:
     """Inner helper: build a Tier 2 SDK adapter pak from project_dir."""
     from .sdk_builder import build_sdk_pak, SdkBuildError
     from .sdk_project import SdkProjectError
@@ -404,6 +405,7 @@ def _cmd_build_sdk_inner(project_dir: Path, output_dir: Path,
         pak_path = build_sdk_pak(
             project_dir, output_dir,
             pak_compare_warn_only=pak_compare_warn_only,
+            **comparison_options,
         )
         print(f"Built: {pak_path}")
         return 0
@@ -435,6 +437,9 @@ def cmd_build_sdk(args) -> int:
     return _cmd_build_sdk_inner(
         Path(args.project_dir), Path(args.output),
         pak_compare_warn_only=getattr(args, "pak_compare_warn_only", False),
+        pak_compare_policy=getattr(args, "pak_compare_policy", "legacy"),
+        pak_compare_reference=getattr(args, "pak_compare_reference", None),
+        pak_compare_reference_sha256=getattr(args, "pak_compare_reference_sha256", None),
     )
 
 
@@ -596,7 +601,7 @@ def _cmd_pak_compare_inner(args) -> int:
         if not ref_dir.is_dir():
             print(f"ERROR: --reference-dir is not a directory: {ref_dir}", file=sys.stderr)
             return 1
-        results = compare_pak_directory(factory, ref_dir)
+        results = compare_pak_directory(factory, ref_dir, policy=getattr(args, "policy", "legacy"), reference_sha256=getattr(args, "reference_sha256", None))
         if not results:
             print(f"No .pak files found in {ref_dir}", file=sys.stderr)
             return 1
@@ -609,7 +614,7 @@ def _cmd_pak_compare_inner(args) -> int:
         if not ref.exists():
             print(f"ERROR: reference pak not found: {ref}", file=sys.stderr)
             return 1
-        result = compare_paks(factory, ref)
+        result = compare_paks(factory, ref, policy=getattr(args, "policy", "legacy"), reference_sha256=getattr(args, "reference_sha256", None))
         _emit(format_report(result))
         results = [(ref, result)]
 
@@ -1138,6 +1143,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="write the full report to FILE in addition to stdout",
     )
     ppc.set_defaults(func=cmd_pak_compare)
+    ppc.add_argument("--policy", choices=("legacy", "upgrade", "structural"), default="legacy")
+    ppc.add_argument("--reference-sha256", default=None, help="pin the reviewed reference artifact; required for structural")
+    pbsdk.add_argument("--pak-compare-policy", choices=("legacy", "upgrade", "structural"), default="legacy")
+    pbsdk.add_argument("--pak-compare-reference", default=None, help="exact reference PAK for automatic build gate")
+    pbsdk.add_argument("--pak-compare-reference-sha256", default=None)
 
     # ------------------------------------------------------------------
     # install subcommand
