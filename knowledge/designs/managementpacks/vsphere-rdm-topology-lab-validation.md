@@ -86,7 +86,7 @@ administrator. The effective minimum is:
 | System | Read requirement |
 |---|---|
 | vCenter | Selected VM configuration/hardware and runtime host; selected host `config.storageDevice.scsiLun`; service-instance about data. |
-| VCF Operations | Token acquisition plus read access to selected resources, their ResourceKeys, statkeys, bounded stats, properties, and relationships. |
+| VCF Operations | Token acquisition plus read access to VMWARE `VirtualMachine` resources and their ResourceKeys, plus selected resources, statkeys, bounded stats, properties, and relationships. |
 
 Permission denial is a probe result at the affected phase. It must not cause
 a fallback join or a claim that a LUN is absent.
@@ -154,6 +154,87 @@ identity.
 There is no evidence that a metric instance has a `ResourceKey` or can be a
 relationship endpoint. The adapter will create relationships to the resolved
 VM resource, not to a disk metric instance.
+
+### B.2 Combined SOAP-to-Operations disk correlation
+
+`--mode soap-ops` runs the existing SOAP phase and the existing Operations
+phase sequentially, without the VIM JSON phase or its session-header
+requirement. The SOAP phase keeps each raw RDM mapping only in memory and
+passes it directly to `_ops_probe(profile, mappings=...)`.
+
+Before comparing an Operations `virtualDisk:<instance>` metric with a SOAP
+disk, the harness requires the Operations resource's exact
+`(VMEntityObjectID, VMEntityVCID)` pair to equal the SOAP VM MOID and the
+SOAP service-instance UUID. This prevents disk-key collisions across VMs or
+vCenters from becoming correlations. A resource with incomplete identity or
+no matching SOAP VM is reported as such and receives no disk comparison.
+
+For each RDM of a correctly identified VM, the sanitized report records
+matches with method, confidence, disk-key fingerprint, instance fingerprint,
+and observed metric leaves. It also records unmatched RDM mappings and
+unmatched Operations disk instances. `missing_instance_data` means no
+`virtualDisk:` metric instance was present; `no_candidate_identifier_matched`
+means instances were present but none matched a SOAP disk identifier. Neither
+outcome is a zero-RDM finding.
+
+After explicit approval for a lab read, the operator supplies the existing
+selected VM and Operations-resource environment values, then uses:
+
+```bash
+.venv/bin/python scripts/rdm_lab_probe.py --execute --allow-read-only-lab \
+  --mode soap-ops --profile devel \
+  --output tmp/rdm-lab-probes/soap-ops-sanitized.json
+```
+
+### B.1 Operations VM discovery and identity proof
+
+The environment has multiple vCenters, so a VM MOID such as `vm-71` is only
+a candidate locator. It is never a VM identity by itself, and a display name
+is never proof.
+
+The explicit opt-in discovery mode uses only documented, read-only SOAP and
+public Suite API operations:
+
+1. The existing authenticated SOAP session reads
+   `ServiceInstance.RetrieveContent().about.instanceUuid` in memory. This is
+   the target vCenter discriminator; it is fingerprinted in the report and
+   never printed.
+2. `GET /api/resources?adapterKind=VMWARE&resourceKind=VirtualMachine&page=<n>&pageSize=1000` pages every matching VM resource. Each response must have a consistent `pageInfo.totalCount` and a complete `resourceList`; pagination or shape failures stop as incomplete.
+3. For every returned resource, inspect `resourceKey.resourceIdentifiers[]`
+   in memory, retaining the identifier name, value, and
+   `isPartOfUniqueness` flag. The sanitized report carries identifier names,
+   flags, and value fingerprints only.
+4. Prove a candidate only when both exact, raw values match: supplied target
+   MOID equals `VMEntityObjectID`, and the vCenter service-instance UUID
+   equals `VMEntityVCID`. The harness does not parse, normalize, or otherwise
+   assume the format of `VMEntityVCID`; the live response supplies that
+   evidence.
+
+An optional `RDM_PROBE_TARGET_VM_DISPLAY_NAME` is a discovery aid: matching
+names are returned as candidates but cannot promote a result to `unique`.
+The result is one of `unique`, `ambiguous`, `absent`, or `incomplete`.
+`unique` is the only state eligible for a handoff. The report never prints
+the actual Operations resource UUID or raw identifier values.
+
+For the approved lab run, ensure the existing vCenter and Operations profile
+environment variables are present, then set the selected VM MOID (for the
+current fixture, `RDM_PROBE_TARGET_VM_MOID=vm-71`) and run:
+
+```bash
+RDM_PROBE_TARGET_VM_MOID='vm-71' \
+.venv/bin/python scripts/rdm_lab_probe.py --execute --allow-read-only-lab \
+  --mode ops-vm-discovery --profile devel \
+  --output tmp/rdm-lab-probes/ops-vm-discovery-sanitized.json \
+  --handoff-output tmp/rdm-lab-probes/ops-vm-resource-id.json
+```
+
+The optional handoff file is created only for one explicit `unique` match,
+under the existing scratch-directory guard, with exclusive creation and mode
+`0600`. It contains only `RDM_PROBE_OPS_RESOURCE_IDS` for the operator to
+load locally into the later read-only metric probe; it is neither printed nor
+tracked. A token release is still a `POST /api/auth/token/release` cleanup
+only: it releases authentication state and does not modify monitored
+inventory.
 
 ### C. VIM JSON parity
 

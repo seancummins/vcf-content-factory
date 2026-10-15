@@ -105,18 +105,65 @@ def test_operations_stats_parser_requires_documented_shape():
 
 
 def test_operations_disk_instance_correlation_uses_in_memory_candidates_only():
-    mappings = [{"vm_moid": "vm-123", "disk_key": 7, "label": "Hard disk 2",
+    mappings = [{"vcenter_instance_uuid": "vc-a", "vm_moid": "vm-123", "disk_key": 7, "label": "Hard disk 2",
                  "file_name": "[ds] vm/rdm.vmdk", "lun_uuid": "lun-uuid",
                  "controller_unit": "scsi0:1"}]
     rows = probe._instance_correlations(
         {"virtualDisk:scsi0:1": {"read"}},
         {"virtualDisk:scsi0:1": {"label": "Hard disk 2", "lunUuid": "lun-uuid"}},
-        [{"identifierType": {"name": "VMEntityObjectID"}, "value": "vm-123"}], mappings,
+        [{"identifierType": {"name": "VMEntityObjectID"}, "value": "vm-123"},
+         {"identifierType": {"name": "VMEntityVCID"}, "value": "vc-a"}], mappings,
     )
     assert rows[0]["confidence"] == "high"
     assert "instance_equals_controller_unit" in rows[0]["methods"]
     assert "vm-123" not in repr(rows)
     assert "lun-uuid" not in repr(rows)
+
+
+def test_soap_ops_correlation_uses_composite_vm_identity_with_overlapping_disk_keys():
+    mappings = [
+        {"vcenter_instance_uuid": "vc-a", "vm_moid": "vm-71", "disk_key": 7,
+         "label": "RDM A", "file_name": "a.vmdk", "lun_uuid": "lun-a", "controller_unit": "scsi0:1"},
+        {"vcenter_instance_uuid": "vc-b", "vm_moid": "vm-71", "disk_key": 7,
+         "label": "RDM B", "file_name": "b.vmdk", "lun_uuid": "lun-b", "controller_unit": "scsi0:2"},
+    ]
+    report = probe._rdm_instance_correlation_report(
+        {"virtualDisk:scsi0:1": {"read"}},
+        {"virtualDisk:scsi0:1": {"lunUuid": "lun-a"}},
+        [{"identifierType": {"name": "VMEntityObjectID"}, "value": "vm-71"},
+         {"identifierType": {"name": "VMEntityVCID"}, "value": "vc-a"}], mappings,
+    )
+    assert report["identity_status"] == "complete_exact_soap_vm_identity"
+    assert len(report["matched"]) == 1
+    assert report["matched"][0]["confidence"] == "high"
+    assert report["unmatched_rdm_mappings"] == []
+    assert "lun-b" not in repr(report)
+
+
+def test_soap_ops_correlation_distinguishes_missing_instances_from_no_identifier_match():
+    mapping = {"vcenter_instance_uuid": "vc-a", "vm_moid": "vm-71", "disk_key": 7,
+               "label": "RDM A", "file_name": "a.vmdk", "lun_uuid": "lun-a", "controller_unit": "scsi0:1"}
+    identifiers = [{"identifierType": {"name": "VMEntityObjectID"}, "value": "vm-71"},
+                   {"identifierType": {"name": "VMEntityVCID"}, "value": "vc-a"}]
+    missing = probe._rdm_instance_correlation_report({}, {}, identifiers, [mapping])
+    assert missing["unmatched_rdm_mappings"][0]["status"] == "missing_instance_data"
+    nonmatching = probe._rdm_instance_correlation_report(
+        {"virtualDisk:scsi1:9": {"read"}}, {}, identifiers, [mapping]
+    )
+    assert nonmatching["unmatched_rdm_mappings"][0]["status"] == "no_candidate_identifier_matched"
+    assert nonmatching["unmatched_operations_disk_instances"][0]["status"] == "no_soap_rdm_candidate_identifier_matched"
+
+
+def test_soap_ops_correlation_refuses_a_resource_from_another_vcenter():
+    mapping = {"vcenter_instance_uuid": "vc-a", "vm_moid": "vm-71", "disk_key": 7,
+               "label": "RDM A", "file_name": "a.vmdk", "lun_uuid": "lun-a", "controller_unit": "scsi0:1"}
+    report = probe._rdm_instance_correlation_report(
+        {"virtualDisk:scsi0:1": {"read"}}, {},
+        [{"identifierType": {"name": "VMEntityObjectID"}, "value": "vm-71"},
+         {"identifierType": {"name": "VMEntityVCID"}, "value": "vc-b"}], [mapping],
+    )
+    assert report["identity_status"] == "no_matching_soap_vm_identity"
+    assert report["matched"] == []
 
 
 def test_token_release_failure_is_recorded_without_raising():
@@ -147,3 +194,67 @@ def test_report_creation_is_exclusive_and_restrictive(tmp_path):
     finally:
         if output.exists():
             output.unlink()
+
+
+def _vm_resource(resource_id, name, moid, vcid, *, complete=True):
+    identifiers = [
+        {"identifierType": {"name": "VMEntityObjectID", "isPartOfUniqueness": True}, "value": moid},
+        {"identifierType": {"name": "VMEntityVCID", "isPartOfUniqueness": True}, "value": vcid},
+        {"identifierType": {"name": "VMEntityName", "isPartOfUniqueness": False}, "value": name},
+    ]
+    if not complete:
+        identifiers[1]["identifierType"].pop("isPartOfUniqueness")
+    return {"identifier": resource_id, "resourceKey": {"name": name, "resourceIdentifiers": identifiers}}
+
+
+def test_vm_discovery_scopes_same_moid_to_owning_vcenter():
+    resources = [
+        _vm_resource("ops-vc-a", "lab-rdm", "vm-71", "vc-a"),
+        _vm_resource("ops-vc-b", "lab-rdm", "vm-71", "vc-b"),
+    ]
+    result, handoff = probe._ops_vm_match(resources, "vm-71", "vc-b", "lab-rdm")
+    assert result["status"] == "unique"
+    assert handoff == "ops-vc-b"
+    assert result["candidate_count"] == 2
+    assert all(candidate["matching_evidence"]["vm_moid_exact"] for candidate in result["candidates"])
+    assert "ops-vc-b" not in repr(result)
+    assert "vc-b" not in repr(result)
+
+
+def test_vm_discovery_duplicate_display_names_are_not_identity_proof():
+    resources = [
+        _vm_resource("ops-first", "duplicate-name", "vm-71", "vc-a"),
+        _vm_resource("ops-second", "duplicate-name", "vm-72", "vc-a"),
+    ]
+    result, handoff = probe._ops_vm_match(resources, "vm-71", "vc-a", "duplicate-name")
+    assert result["status"] == "unique"
+    assert handoff == "ops-first"
+    assert all(candidate["matching_evidence"]["display_name_exact_discovery_only"] for candidate in result["candidates"])
+    assert sum(candidate["matching_evidence"]["pair_exact"] for candidate in result["candidates"]) == 1
+
+
+def test_vm_discovery_never_selects_multiple_or_incomplete_pair_matches():
+    duplicate = [_vm_resource("ops-one", "lab", "vm-71", "vc-a"), _vm_resource("ops-two", "lab", "vm-71", "vc-a")]
+    result, handoff = probe._ops_vm_match(duplicate, "vm-71", "vc-a")
+    assert result["status"] == "ambiguous"
+    assert handoff is None
+    incomplete = [_vm_resource("ops-one", "lab", "vm-71", "vc-a", complete=False)]
+    result, handoff = probe._ops_vm_match(incomplete, "vm-71", "vc-a")
+    assert result["status"] == "incomplete"
+    assert handoff is None
+
+
+def test_ops_handoff_is_restricted_and_contains_only_local_operator_input():
+    repo_root = Path(probe.__file__).parents[1]
+    handoff = repo_root / "tmp" / "rdm-lab-probes" / "test-ops-handoff.json"
+    if handoff.exists():
+        handoff.unlink()
+    try:
+        probe._write_ops_uuid_handoff(handoff, "ops-resource-uuid")
+        assert handoff.stat().st_mode & 0o777 == 0o600
+        assert handoff.read_text(encoding="utf-8") == '{\n  "RDM_PROBE_OPS_RESOURCE_IDS": [\n    "ops-resource-uuid"\n  ]\n}\n'
+        with pytest.raises(ValueError):
+            probe._write_ops_uuid_handoff(handoff, "again")
+    finally:
+        if handoff.exists():
+            handoff.unlink()

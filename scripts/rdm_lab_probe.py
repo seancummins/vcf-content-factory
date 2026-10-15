@@ -19,6 +19,8 @@ from typing import Any, Iterable, Optional
 
 
 SCHEMA_VERSION = "vcfcf-rdm-lab-probe-v1"
+OPS_VM_DISCOVERY_PAGE_SIZE = 1000
+OPS_VM_DISCOVERY_MAX_PAGES = 10000
 
 
 class FieldReadError(RuntimeError):
@@ -31,6 +33,10 @@ class PropertyCollectionError(RuntimeError):
 
 class OperationsShapeError(RuntimeError):
     """A public Operations response did not have its documented read shape."""
+
+
+class OperationsDiscoveryError(RuntimeError):
+    """Operations VM discovery could not establish a complete candidate set."""
 
 
 def _fp(value: Any) -> Optional[str]:
@@ -137,6 +143,30 @@ def _collect_properties(pc: Any, objects: Iterable[Any], vim_type: Any, paths: l
     return records
 
 
+def _vcenter_instance_uuid() -> str:
+    """Read the owning vCenter's service-instance UUID without emitting it."""
+    try:
+        from pyVim.connect import Disconnect, SmartConnect
+    except ImportError as exc:
+        raise RuntimeError("vCenter identity probe requires an already-installed pyVmomi; it will not install it") from exc
+    host = os.environ.get("RDM_PROBE_VCENTER_HOST", "")
+    user = os.environ.get("RDM_PROBE_VCENTER_USER", "")
+    password = os.environ.get("RDM_PROBE_VCENTER_PASSWORD", "")
+    if not all((host, user, password)):
+        raise RuntimeError("missing RDM_PROBE_VCENTER_HOST/USER/PASSWORD")
+    verify = os.environ.get("RDM_PROBE_VCENTER_VERIFY_SSL", "true").lower() not in {"0", "false", "no", "off"}
+    service_instance = None
+    try:
+        service_instance = SmartConnect(host=host, user=user, pwd=password, disableSslCertValidation=not verify)
+        instance_uuid = _get(service_instance.RetrieveContent().about, "instanceUuid")
+        if not isinstance(instance_uuid, str) or not instance_uuid:
+            raise FieldReadError("vCenter service-instance UUID is missing or unreadable")
+        return instance_uuid
+    finally:
+        if service_instance is not None:
+            Disconnect(service_instance)
+
+
 def _lun_visibility(lun_fp: Optional[str], host_views: list[dict[str, Any]], current_host_fp: Optional[str],
                     unstable: bool) -> tuple[str, str, list[dict[str, Any]], list[dict[str, Any]]]:
     """Report vCenter-wide observations separately from current-host visibility."""
@@ -177,6 +207,9 @@ def _soap_probe() -> tuple[dict[str, Any], list[dict[str, Any]]]:
     try:
         service_instance = SmartConnect(host=host, user=user, pwd=password, disableSslCertValidation=not verify)
         content = service_instance.RetrieveContent()
+        vc_instance_uuid = _get(content.about, "instanceUuid")
+        if not isinstance(vc_instance_uuid, str) or not vc_instance_uuid:
+            raise FieldReadError("vCenter service-instance UUID is missing or unreadable")
         vm_refs = [vim.VirtualMachine(moid, service_instance._stub) for moid in vm_moids]
         vm_records = _collect_properties(
             content.propertyCollector, vm_refs, vim.VirtualMachine,
@@ -240,10 +273,11 @@ def _soap_probe() -> tuple[dict[str, Any], list[dict[str, Any]]]:
                     "current_host_lun_views": current_host_candidates,
                 })
                 private_mappings.append({
-                    "vm_moid": vm_moid, "disk_key": disk_key, "label": label, "file_name": file_name,
+                    "vcenter_instance_uuid": vc_instance_uuid, "vm_moid": vm_moid,
+                    "disk_key": disk_key, "label": label, "file_name": file_name,
                     "lun_uuid": lun_uuid, "controller_unit": None if bus is None or unit_number is None else f"scsi{bus}:{unit_number}",
                 })
-        return ({"vc_instance_fp": _fp(_get(content.about, "instanceUuid")), "vm_requested": len(vm_moids),
+        return ({"vc_instance_fp": _fp(vc_instance_uuid), "vm_requested": len(vm_moids),
                  "vm_read": len(vm_records), "hosts_read": len(host_records), "rdm_mappings": mappings}, private_mappings)
     finally:
         if service_instance is not None:
@@ -368,39 +402,100 @@ def _operations_properties(payload: Any) -> dict[str, dict[str, Any]]:
     return found
 
 
+def _operations_vm_identity(identifiers: list[dict[str, Any]]) -> tuple[Optional[str], Optional[str], str]:
+    """Return the exact VMWARE composite identity only when both fields are readable."""
+    values = {
+        (item.get("identifierType") or {}).get("name"): item.get("value")
+        for item in identifiers if isinstance(item, dict)
+    }
+    moid = values.get("VMEntityObjectID")
+    vcid = values.get("VMEntityVCID")
+    if not isinstance(moid, str) or not moid or not isinstance(vcid, str) or not vcid:
+        return None, None, "incomplete_operations_vm_identity"
+    return moid, vcid, "complete_operations_vm_identity"
+
+
+def _mapping_match_methods(instance: str, values: dict[str, Any], mapping: dict[str, Any]) -> list[str]:
+    methods = []
+    if instance == "virtualDisk:" + str(mapping["disk_key"]):
+        methods.append("instance_equals_virtual_disk_key")
+    if mapping["controller_unit"] and instance == "virtualDisk:" + mapping["controller_unit"]:
+        methods.append("instance_equals_controller_unit")
+    if mapping["label"] and instance == "virtualDisk:" + str(mapping["label"]):
+        methods.append("instance_equals_label")
+    if mapping["file_name"] and instance == "virtualDisk:" + str(mapping["file_name"]):
+        methods.append("instance_equals_backing_filename")
+    if mapping["lun_uuid"] and instance == "virtualDisk:" + str(mapping["lun_uuid"]):
+        methods.append("instance_equals_lun_uuid")
+    if mapping["label"] and values.get("label") == mapping["label"]:
+        methods.append("property_label")
+    if mapping["file_name"] and values.get("fileName") == mapping["file_name"]:
+        methods.append("property_file_name")
+    if mapping["lun_uuid"] and values.get("lunUuid") == mapping["lun_uuid"]:
+        methods.append("property_lun_uuid")
+    return methods
+
+
+def _rdm_instance_correlation_report(instances: dict[str, set[str]], properties: dict[str, dict[str, Any]],
+                                     identifiers: list[dict[str, Any]], mappings: list[dict[str, Any]]) -> dict[str, Any]:
+    """Correlate only SOAP RDMs belonging to the exact Operations VM identity."""
+    if not mappings:
+        return {"identity_status": "not_requested", "matched": [], "unmatched_rdm_mappings": [],
+                "unmatched_operations_disk_instances": []}
+    vm_moid, vcid, identity_status = _operations_vm_identity(identifiers)
+    if identity_status != "complete_operations_vm_identity":
+        return {"identity_status": identity_status, "matched": [], "unmatched_rdm_mappings": [],
+                "unmatched_operations_disk_instances": []}
+    candidates = [mapping for mapping in mappings
+                  if mapping.get("vm_moid") == vm_moid and mapping.get("vcenter_instance_uuid") == vcid]
+    if not candidates:
+        return {"identity_status": "no_matching_soap_vm_identity", "matched": [], "unmatched_rdm_mappings": [],
+                "unmatched_operations_disk_instances": []}
+    if not instances:
+        return {
+            "identity_status": "complete_exact_soap_vm_identity", "matched": [],
+            "unmatched_rdm_mappings": [
+                {"disk_key_fp": _fp(mapping["disk_key"]), "status": "missing_instance_data"}
+                for mapping in candidates
+            ],
+            "unmatched_operations_disk_instances": [],
+        }
+    matched = []
+    unmatched_mappings = []
+    matched_instances: set[str] = set()
+    for mapping in candidates:
+        matches = []
+        for instance, leaves in instances.items():
+            methods = _mapping_match_methods(instance, properties.get(instance, {}), mapping)
+            if methods:
+                confidence = "high" if "instance_equals_controller_unit" in methods and len(methods) > 1 else "medium" if len(methods) > 1 else "low"
+                matches.append({"instance_token_fp": _fp(instance), "disk_key_fp": _fp(mapping["disk_key"]),
+                                "methods": methods, "confidence": confidence,
+                                "observed_metric_leaves": sorted(leaves)})
+                matched_instances.add(instance)
+        if len(matches) == 1:
+            matched.extend(matches)
+        elif len(matches) > 1:
+            unmatched_mappings.append({"disk_key_fp": _fp(mapping["disk_key"]),
+                                       "status": "ambiguous_candidate_identifier_match",
+                                       "candidate_instance_token_fps": [match["instance_token_fp"] for match in matches]})
+        else:
+            unmatched_mappings.append({"disk_key_fp": _fp(mapping["disk_key"]),
+                                       "status": "no_candidate_identifier_matched"})
+    unmatched_instances = [
+        {"instance_token_fp": _fp(instance), "status": "no_soap_rdm_candidate_identifier_matched",
+         "observed_metric_leaves": sorted(leaves)}
+        for instance, leaves in instances.items() if instance not in matched_instances
+    ]
+    return {"identity_status": "complete_exact_soap_vm_identity", "matched": matched,
+            "unmatched_rdm_mappings": unmatched_mappings,
+            "unmatched_operations_disk_instances": unmatched_instances}
+
+
 def _instance_correlations(instances: dict[str, set[str]], properties: dict[str, dict[str, Any]],
                            identifiers: list[dict[str, Any]], mappings: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    vm_moid = next((item.get("value") for item in identifiers
-                    if (item.get("identifierType") or {}).get("name") == "VMEntityObjectID"), None)
-    candidates = [item for item in mappings if item["vm_moid"] == vm_moid]
-    results = []
-    for instance, leaves in instances.items():
-        for mapping in candidates:
-            methods = []
-            if instance == "virtualDisk:" + str(mapping["disk_key"]):
-                methods.append("instance_equals_virtual_disk_key")
-            if mapping["controller_unit"] and instance == "virtualDisk:" + mapping["controller_unit"]:
-                methods.append("instance_equals_controller_unit")
-            if mapping["label"] and instance == "virtualDisk:" + str(mapping["label"]):
-                methods.append("instance_equals_label")
-            if mapping["file_name"] and instance == "virtualDisk:" + str(mapping["file_name"]):
-                methods.append("instance_equals_backing_filename")
-            if mapping["lun_uuid"] and instance == "virtualDisk:" + str(mapping["lun_uuid"]):
-                methods.append("instance_equals_lun_uuid")
-            values = properties.get(instance, {})
-            if mapping["label"] and values.get("label") == mapping["label"]:
-                methods.append("property_label")
-            if mapping["file_name"] and values.get("fileName") == mapping["file_name"]:
-                methods.append("property_file_name")
-            if mapping["lun_uuid"] and values.get("lunUuid") == mapping["lun_uuid"]:
-                methods.append("property_lun_uuid")
-            if not methods:
-                continue
-            confidence = "high" if "instance_equals_controller_unit" in methods and len(methods) > 1 else "medium" if len(methods) > 1 else "low"
-            results.append({"instance_token_fp": _fp(instance), "disk_key_fp": _fp(mapping["disk_key"]),
-                            "methods": methods, "confidence": confidence,
-                            "observed_metric_leaves": sorted(leaves)})
-    return results
+    """Compatibility summary: matched correlations only."""
+    return _rdm_instance_correlation_report(instances, properties, identifiers, mappings)["matched"]
 
 
 def _release_operations_token(client: Any, cleanup: dict[str, Any]) -> None:
@@ -413,6 +508,146 @@ def _release_operations_token(client: Any, cleanup: dict[str, Any]) -> None:
         cleanup["status"] = "released" if response.status_code == 200 else "release_http_failure"
     except Exception:
         cleanup["status"] = "release_exception"
+
+
+def _resource_identifier_values(resource: Any) -> tuple[Optional[str], list[dict[str, Any]], bool]:
+    """Read the complete resource-key identifier set, retaining raw values only in memory."""
+    if not isinstance(resource, dict):
+        return None, [], False
+    resource_id = resource.get("identifier")
+    if not isinstance(resource_id, str) or not resource_id:
+        resource_id = resource.get("id")
+    key = resource.get("resourceKey")
+    identifiers = key.get("resourceIdentifiers") if isinstance(key, dict) else None
+    if not isinstance(identifiers, list):
+        return resource_id if isinstance(resource_id, str) else None, [], False
+    sanitized = []
+    complete = isinstance(resource_id, str) and bool(resource_id)
+    for item in identifiers:
+        identifier_type = item.get("identifierType") if isinstance(item, dict) else None
+        name = identifier_type.get("name") if isinstance(identifier_type, dict) else None
+        value = item.get("value") if isinstance(item, dict) else None
+        unique = identifier_type.get("isPartOfUniqueness") if isinstance(identifier_type, dict) else None
+        if not isinstance(name, str) or not name or not isinstance(value, str) or not isinstance(unique, bool):
+            complete = False
+            continue
+        sanitized.append({"name": name, "value_fp": _fp(value), "is_part_of_uniqueness": unique})
+    return resource_id if isinstance(resource_id, str) else None, sanitized, complete
+
+
+def _ops_vm_match(resources: list[dict[str, Any]], vm_moid: str, vcenter_instance_uuid: str,
+                  display_name: Optional[str] = None) -> tuple[dict[str, Any], Optional[str]]:
+    """Require exact VMEntityObjectID + VMEntityVCID evidence; names are discovery-only."""
+    candidates = []
+    proven: list[str] = []
+    incomplete_possible_match = False
+    for resource in resources:
+        resource_id, identifiers, complete = _resource_identifier_values(resource)
+        key = resource.get("resourceKey") if isinstance(resource, dict) else None
+        name = key.get("name") if isinstance(key, dict) else None
+        raw_values = {
+            item["name"]: None for item in identifiers
+        }
+        # Read values directly from the response only for comparison; never
+        # attach this map to the returned report.
+        for item in (key.get("resourceIdentifiers") if isinstance(key, dict) and isinstance(key.get("resourceIdentifiers"), list) else []):
+            identifier_type = item.get("identifierType") if isinstance(item, dict) else None
+            identifier_name = identifier_type.get("name") if isinstance(identifier_type, dict) else None
+            if isinstance(identifier_name, str) and isinstance(item.get("value"), str):
+                raw_values[identifier_name] = item["value"]
+        moid_match = raw_values.get("VMEntityObjectID") == vm_moid
+        vcid_match = raw_values.get("VMEntityVCID") == vcenter_instance_uuid
+        display_name_match = isinstance(display_name, str) and name == display_name
+        pair_match = moid_match and vcid_match and complete and resource_id is not None
+        partial_match = moid_match or vcid_match
+        if (partial_match or display_name_match) and not pair_match and not complete:
+            incomplete_possible_match = True
+        if partial_match or display_name_match:
+            candidates.append({
+                "resource_uuid_fp": _fp(resource_id),
+                "resource_name_fp": _fp(name),
+                "identifier_values": identifiers,
+                "matching_evidence": {
+                    "vm_moid_exact": moid_match,
+                    "vcenter_instance_uuid_exact": vcid_match,
+                    "display_name_exact_discovery_only": display_name_match,
+                    "pair_exact": pair_match,
+                },
+                "candidate_status": "complete_pair_match" if pair_match else
+                "incomplete_identifier_set" if not complete else
+                "partial_identity_match" if partial_match else "display_name_candidate_only",
+            })
+        if pair_match:
+            proven.append(resource_id)
+    if len(proven) == 1:
+        status = "unique"
+        handoff_resource_id: Optional[str] = proven[0]
+    elif len(proven) > 1:
+        status = "ambiguous"
+        handoff_resource_id = None
+    elif incomplete_possible_match:
+        status = "incomplete"
+        handoff_resource_id = None
+    else:
+        status = "absent"
+        handoff_resource_id = None
+    return ({"status": status, "candidate_count": len(candidates), "candidates": candidates}, handoff_resource_id)
+
+
+def _ops_vm_discovery(profile: str) -> tuple[dict[str, Any], Optional[str]]:
+    """Read all VMWARE VirtualMachine resource keys and prove one scoped match."""
+    from vcfcf_common.client import VCFOpsClient
+
+    vm_moid = os.environ.get("RDM_PROBE_TARGET_VM_MOID", "")
+    display_name = os.environ.get("RDM_PROBE_TARGET_VM_DISPLAY_NAME") or None
+    if not vm_moid:
+        raise RuntimeError("missing RDM_PROBE_TARGET_VM_MOID")
+    vcenter_instance_uuid = _vcenter_instance_uuid()
+    client = VCFOpsClient.from_env(profile, default_profile="devel")
+    cleanup = {"attempted": False, "status": "not_needed"}
+    resources: list[dict[str, Any]] = []
+    try:
+        expected_total: Optional[int] = None
+        for page in range(OPS_VM_DISCOVERY_MAX_PAGES):
+            response = client._request("GET", "/api/resources", params={
+                "adapterKind": "VMWARE", "resourceKind": "VirtualMachine",
+                "page": page, "pageSize": OPS_VM_DISCOVERY_PAGE_SIZE,
+            })
+            if response.status_code != 200:
+                raise OperationsDiscoveryError("Operations VM resource listing failed")
+            payload = response.json()
+            rows = payload.get("resourceList") if isinstance(payload, dict) else None
+            page_info = payload.get("pageInfo") if isinstance(payload, dict) else None
+            total = page_info.get("totalCount") if isinstance(page_info, dict) else None
+            if not isinstance(rows, list) or not isinstance(total, int) or total < 0:
+                raise OperationsDiscoveryError("Operations VM resource listing has incomplete pagination")
+            if expected_total is None:
+                expected_total = total
+            elif expected_total != total:
+                raise OperationsDiscoveryError("Operations VM resource listing changed during pagination")
+            if not all(isinstance(row, dict) for row in rows):
+                raise OperationsDiscoveryError("Operations VM resource listing contains an invalid resource")
+            resources.extend(rows)
+            if len(resources) >= total:
+                if len(resources) != total:
+                    raise OperationsDiscoveryError("Operations VM resource listing exceeded declared total")
+                break
+            if not rows:
+                raise OperationsDiscoveryError("Operations VM resource listing ended before declared total")
+        else:
+            raise OperationsDiscoveryError("Operations VM resource listing exceeded safety page limit")
+        result, handoff_resource_id = _ops_vm_match(resources, vm_moid, vcenter_instance_uuid, display_name)
+        result.update({
+            "profile": profile,
+            "vcenter_instance_uuid_fp": _fp(vcenter_instance_uuid),
+            "target_vm_moid_fp": _fp(vm_moid),
+            "display_name_search_requested": display_name is not None,
+            "resources_examined": len(resources),
+            "token_cleanup": cleanup,
+        })
+        return result, handoff_resource_id
+    finally:
+        _release_operations_token(client, cleanup)
 
 
 def _ops_probe(profile: str, mappings: Optional[list[dict[str, Any]]] = None) -> dict[str, Any]:
@@ -445,6 +680,7 @@ def _ops_probe(profile: str, mappings: Optional[list[dict[str, Any]]] = None) ->
             instances = _operations_instances(stats.json())
             disk_tokens = sorted(instances)
             props_by_instance = _operations_properties(properties.json())
+            rdm_correlation = _rdm_instance_correlation_report(instances, props_by_instance, identifiers, mappings or [])
             prop_names = [name for name in (entry.get("name") for entry in (properties.json().get("property") or []))
                           if isinstance(name, str) and name.startswith("virtualDisk:")]
             related = relationships.json().get("resourceList") or []
@@ -456,7 +692,8 @@ def _ops_probe(profile: str, mappings: Optional[list[dict[str, Any]]] = None) ->
                 "declared_virtual_disk_fields": sorted(filter(None, disk_schema)),
                 "observed_instance_token_fps": sorted(filter(None, (_fp(token) for token in disk_tokens))),
                 "virtual_disk_property_key_fps": sorted(filter(None, (_fp(name) for name in prop_names))),
-                "disk_instance_correlations": _instance_correlations(instances, props_by_instance, identifiers, mappings or []),
+                "disk_instance_correlations": rdm_correlation["matched"],
+                "rdm_disk_instance_correlation": rdm_correlation,
                 "related_resource_kind_counts": _kind_counts(related),
             })
     finally:
@@ -529,40 +766,56 @@ def _write_report(path: Path, report: dict[str, Any]) -> None:
         os.close(directory_fd)
 
 
+def _write_ops_uuid_handoff(path: Path, resource_id: str) -> None:
+    """Write a unique resolved UUID only to a new local mode-0600 handoff file."""
+    _write_report(path, {"RDM_PROBE_OPS_RESOURCE_IDS": [resource_id]})
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", action="store_true", help="print the offline execution plan (default)")
     parser.add_argument("--execute", action="store_true", help="allow a live read-only probe")
     parser.add_argument("--allow-read-only-lab", action="store_true", help="second explicit acknowledgement required with --execute")
-    parser.add_argument("--mode", choices=("vcenter-soap", "vim-json", "ops", "both"), default="both")
+    parser.add_argument("--mode", choices=("vcenter-soap", "vim-json", "ops", "ops-vm-discovery", "soap-ops", "both"), default="both")
     parser.add_argument("--profile", default="devel", help="VCF Operations profile for --mode ops")
     parser.add_argument("--output", type=Path, help="optional sanitized JSON report; never use a tracked path")
+    parser.add_argument("--handoff-output", type=Path,
+                        help="discovery-only local mode-0600 file holding a uniquely resolved Operations resource UUID")
     args = parser.parse_args(argv)
     if not args.execute:
         print("OFFLINE PLAN: no network calls. Re-run only after approval with --execute --allow-read-only-lab.")
-        print("Modes: vcenter-soap, vim-json, ops, both. VIM JSON uses an environment-only session header.")
+        print("Modes: vcenter-soap, vim-json, ops, ops-vm-discovery, soap-ops, both. VIM JSON uses an environment-only session header.")
         return 0
     if not args.allow_read_only_lab:
         parser.error("--execute requires --allow-read-only-lab")
+    if args.handoff_output and args.mode != "ops-vm-discovery":
+        parser.error("--handoff-output requires --mode ops-vm-discovery")
     report: dict[str, Any] = {"schema_version": SCHEMA_VERSION, "mode": args.mode, "started_at_epoch_ms": int(time.time() * 1000)}
     private_mappings: list[dict[str, Any]] = []
+    handoff_resource_id: Optional[str] = None
     try:
-        if args.mode in {"vcenter-soap", "both"}:
+        if args.mode in {"vcenter-soap", "soap-ops", "both"}:
             report["vcenter_soap"], private_mappings = _soap_probe()
         if args.mode in {"vim-json", "both"}:
             report["vim_json"] = _vim_json_probe()
         if args.mode == "both":
             report["vim_json_parity"] = _json_parity(report["vcenter_soap"], report["vim_json"])
-        if args.mode in {"ops", "both"}:
+        if args.mode in {"ops", "soap-ops", "both"}:
             report["operations"] = _ops_probe(args.profile, private_mappings)
+        if args.mode == "ops-vm-discovery":
+            report["operations_vm_discovery"], handoff_resource_id = _ops_vm_discovery(args.profile)
+            if args.handoff_output and handoff_resource_id is None:
+                raise OperationsDiscoveryError("refusing handoff without a unique Operations VM match")
     except Exception as exc:
         report["error"] = {"class": type(exc).__name__}
         print(json.dumps(report, sort_keys=True))
         return 2
     if args.output:
         _write_report(args.output, report)
+    if args.handoff_output and handoff_resource_id is not None:
+        _write_ops_uuid_handoff(args.handoff_output, handoff_resource_id)
     print(json.dumps({"schema_version": SCHEMA_VERSION, "mode": args.mode, "status": "complete",
-                      "output_written": bool(args.output)}, sort_keys=True))
+                      "output_written": bool(args.output), "handoff_written": bool(args.handoff_output)}, sort_keys=True))
     return 0
 
 
