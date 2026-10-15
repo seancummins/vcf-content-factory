@@ -1,7 +1,7 @@
 # RDM topology POC E1.5 — independent governance and CI-readiness review
 
-**Reviewer:** `sdk-adapter-reviewer` (independent Codex context)  
-**Date:** 2026-10-14  
+**Reviewer:** `sdk-adapter-reviewer` (independent Codex context)
+**Date:** 2026-10-14
 **Scope:** Offline review of the proposed first-release governance plan and
 related local E1 records. No network, GitHub, CI, VMware endpoint, credential,
 repository, remote, adapter-source, or package change was made.

@@ -1,9 +1,9 @@
 # RDM topology POC E1 — independent deployment-readiness review
 
-**Reviewer:** `sdk-adapter-reviewer` (independent, offline gate)  
-**Scope:** E1 artifact audit and controlled-persistence experiment plan  
+**Reviewer:** `sdk-adapter-reviewer` (independent, offline gate)
+**Scope:** E1 artifact audit and controlled-persistence experiment plan
 **Binary verdict:** **APPROVE — 0 blocking defects in the offline audit or
-experiment plan.**  
+experiment plan.**
 **Deployment recommendation:** **NO-GO.**
 
 The approval is limited to the accuracy and conservatism of the reviewed E1
@@ -107,4 +107,3 @@ Only then is the correct recommendation **CONDITIONAL GO** for the bounded E2
 experiment—not for production rollout. A post-experiment reviewer must still
 evaluate API persistence, UI visibility, duplicate behavior, and cleanup
 against the plan before a production design decision.
-

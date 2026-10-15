@@ -1,6 +1,6 @@
 # RDM topology POC — E1 offline artifact audit
 
-**Assessment date:** 2026-10-14  
+**Assessment date:** 2026-10-14
 **Scope:** local, offline examination only. No VMware or VCF Operations
 endpoint was contacted, and no installation, configuration, mutation, commit,
 push, remote creation, or publication occurred.
@@ -9,7 +9,7 @@ push, remote creation, or publication occurred.
 
 | Repository | Location | Branch | HEAD | Remote / status |
 |---|---|---|---|---|
-| Factory | repository root | `feature/rdm-topology-mp` | `b3fbbc4c95821e9cd89f6cf54bff318c8d597c91` | tracks `origin/feature/rdm-topology-mp`; E1 documentation is uncommitted work | 
+| Factory | repository root | `feature/rdm-topology-mp` | `b3fbbc4c95821e9cd89f6cf54bff318c8d597c91` | tracks `origin/feature/rdm-topology-mp`; E1 documentation is uncommitted work |
 | POC adapter | `content/sdk-adapters/rdm-topology-poc` | `main` | `4493ee2584f180be65a4472b0996f5207d8ee456` | no remote configured; clean at assessment time |
 
 The adapter directory has its own `.git` worktree and is ignored by the
