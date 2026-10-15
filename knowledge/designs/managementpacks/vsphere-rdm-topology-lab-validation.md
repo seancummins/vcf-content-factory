@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-**Status:** proposed, approved for read-only lab validation only.
+**Status:** lab identity chain verified; SDK relationship persistence remains unproven.
 
 This plan validates the source facts needed for the proposed Tier 2
 `RdmMapping` and `CanonicalLun` resources. It does not create an adapter
@@ -19,6 +19,28 @@ VMWARE::VirtualMachine --(additive foreign edge)--> RdmMapping --> CanonicalLun
 pack-owned resource, not an assumed first-party VMWARE resource. A future
 foreign LUN stitch is conditional on separate evidence for the target kind
 and its real Suite API identity.
+
+## Increment C evidence update (2026-10-14)
+
+The approved read-only lab run verified the following facts for the initial
+physical-mode RDM fixture (`vm-71`):
+
+- `VirtualDiskRawDiskMappingVer1BackingInfo.lunUuid` exactly matched the
+  hosting ESXi `ScsiLun.uuid`.
+- The resolved host LUN had an NAA-class canonical name and an NAA
+  durable-name namespace.
+- The Operations VM resource was uniquely identified by the exact
+  `VMEntityObjectID` (MOID) plus `VMEntityVCID` (vCenter
+  `about.instanceUuid`) pair; both identifier flags were uniqueness-bearing.
+- The RDM virtual disk matched one existing Operations virtual-disk metric
+  instance through controller/unit, disk label, and backing filename, at high
+  confidence. There were zero unmatched RDM mappings.
+
+These findings prove the source and identity chain only. A metric instance is
+not an independently addressable topology resource, and this validation does
+not prove that the Java SDK can persist a foreign-VM relationship. The
+separate POC decision record is
+`knowledge/designs/managementpacks/vsphere-rdm-topology-sdk-poc.md`.
 
 ## Provenance
 
