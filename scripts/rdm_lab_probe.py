@@ -14,6 +14,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import socket
 import ssl
@@ -199,7 +200,10 @@ def _collect_properties(pc: Any, objects: Iterable[Any], vim_type: Any, paths: l
         while result:
             for content in result.objects or []:
                 moid = content.obj._moId
-                values = {prop.name: prop.val for prop in content.propSet or []}
+                properties = list(content.propSet or [])
+                if moid not in requested or moid in records or len({prop.name for prop in properties}) != len(properties):
+                    raise PropertyCollectionError("PropertyCollector response duplicated or unexpected")
+                values = {prop.name: prop.val for prop in properties}
                 records[moid] = values
                 absent = set(paths) - set(values)
                 # A missingSet can carry a VIM fault (for example, a privilege
@@ -883,7 +887,7 @@ def _fixture_validator():
     if not shutil.which("javac") or not shutil.which("java"):
         raise FixtureExportError("Offline Java tools unavailable", stage="JAVA_PARSER_SETUP", code="JAVA_UNAVAILABLE")
     files = [source / f"{name}.java" for name in
-             ("RuntimeFixture", "ForeignVmIdentity", "RdmMappingIdentity")]
+             ("RuntimeFixture", "ForeignVmIdentity", "RdmMappingIdentity", "CanonicalLunIdentity")]
     files.append(root / "scripts/RdmFixtureValidate.java")
     if not all(path.is_file() for path in files):
         raise FixtureExportError("Actual E2.1 parser source unavailable", stage="JAVA_PARSER_SETUP", code="PARSER_SOURCE_UNAVAILABLE")
@@ -904,7 +908,8 @@ def _fixture_validator():
         yield validate
 
 
-def _capture_soap_fixture() -> dict[str, Any]:
+def _capture_soap_fixture(*, include_lun: bool = False, include_identity: bool = False,
+                          identity_hosts: Optional[list[str]] = None) -> dict[str, Any]:
     """Only vm-71, with instance UUID and stable pre/post configuration snapshots."""
     with _fixture_stage("VCENTER_CONFIGURATION"):
         from pyVim.connect import Disconnect, SmartConnect
@@ -924,6 +929,8 @@ def _capture_soap_fixture() -> dict[str, Any]:
         with _fixture_stage("VCENTER_READ", authentication_errors=auth_errors):
             content = instance.RetrieveContent()
             vc = _get(content.about, "instanceUuid")
+            if include_identity and (not isinstance(vc, str) or not vc):
+                raise PropertyCollectionError("vCenter identity unavailable")
             vm = vim.VirtualMachine("vm-71", instance._stub)
             paths = ["config.instanceUuid", "config.changeVersion", "runtime.host", "config.hardware.device"]
             before = _collect_properties(content.propertyCollector, [vm], vim.VirtualMachine, paths)["vm-71"]
@@ -935,13 +942,98 @@ def _capture_soap_fixture() -> dict[str, Any]:
                 _fixture_schema_failure("VM_DEVICES_NOT_ARRAY", "vcenter.config.hardware.device")
             disks = [device for device in devices if isinstance(device, vim.vm.device.VirtualDisk)
                      and isinstance(_get(device, "backing"), vim.vm.device.VirtualDisk.RawDiskMappingVer1BackingInfo)]
-            return _single_rdm_fixture_mapping(vc, before["config.instanceUuid"], disks)
+            mapping = _single_rdm_fixture_mapping(vc, before["config.instanceUuid"], disks)
+            if include_lun or include_identity:
+                current_host = before["runtime.host"]
+                host_id = _get(current_host, "_moId")
+                values = _collect_properties(content.propertyCollector, [current_host], vim.HostSystem,
+                                             ["config.storageDevice.scsiLun"])[host_id]
+                luns = values["config.storageDevice.scsiLun"]
+                if not isinstance(luns, (list, tuple)):
+                    raise PropertyCollectionError("Host LUN inventory unavailable")
+                lun_uuid = _get(_get(disks[0], "backing"), "lunUuid")
+                if not isinstance(lun_uuid, str) or not lun_uuid:
+                    raise PropertyCollectionError("RDM backing LUN UUID unavailable")
+                matches = [lun for lun in luns if _get(lun, "uuid") == lun_uuid]
+                if len(matches) != 1 or not isinstance(_get(matches[0], "canonicalName"), str) or not _get(matches[0], "canonicalName"):
+                    raise PropertyCollectionError("Current-host LUN identity absent or ambiguous")
+                end = _collect_properties(content.propertyCollector, [vm], vim.VirtualMachine, paths[:-1])["vm-71"]
+                _validate_fixture_snapshot(before, end)
+                mapping.update({"lun_uuid": lun_uuid, "canonical_name": _get(matches[0], "canonicalName"),
+                    "host_moid": host_id, "backing_device": _get(_get(disks[0], "backing"), "deviceName")})
+                if include_identity:
+                    decoder = _lun_identity_module()
+                    try:
+                        current_token = decoder.naa(mapping["canonical_name"], "naa.")
+                    except decoder.IdentityError:
+                        current_token = None
+                    def canonical_token(lun):
+                        try:
+                            return decoder.naa(_get(lun, "canonicalName"), "naa.")
+                        except decoder.IdentityError:
+                            return None
+                    selected = _identity_host_selection(identity_hosts or [], host_id)
+                    observations = []
+                    for selected_id in selected:
+                        if selected_id == host_id:
+                            host_luns = luns
+                        else:
+                            selected_ref = vim.HostSystem(selected_id, instance._stub)
+                            host_luns = _collect_properties(content.propertyCollector, [selected_ref], vim.HostSystem,
+                                ["config.storageDevice.scsiLun"])[selected_id]["config.storageDevice.scsiLun"]
+                        if not isinstance(host_luns, (list, tuple)):
+                            raise PropertyCollectionError("Selected host LUN inventory unavailable")
+                        uuid_matches = [lun for lun in host_luns if _get(lun, "uuid") == lun_uuid]
+                        canonical_matches = [lun for lun in host_luns if current_token is not None and canonical_token(lun) == current_token]
+                        # A disjoint canonical match alongside a UUID match is a
+                        # contradictory observation, not a reason to pick either.
+                        candidates = uuid_matches or canonical_matches
+                        conflict = (uuid_matches and any(lun not in uuid_matches for lun in canonical_matches))
+                        observations.append({"host_moid": selected_id,
+                            "join_method": "exact_backing_uuid" if uuid_matches else "exact_canonical_candidate",
+                            "lun": _raw_lun_identity(candidates[0]) if len(candidates) == 1 and not conflict else None})
+                    final = _collect_properties(content.propertyCollector, [vm], vim.VirtualMachine, paths[:-1])["vm-71"]
+                    _validate_fixture_snapshot(before, final)
+                    mapping["lun_observations"] = observations
+                    mapping["observed_at_epoch_ms"] = int(time.time() * 1000)
+            return mapping
     finally:
         if instance is not None:
             try:
                 Disconnect(instance)
             except Exception:
                 pass  # Session cleanup must not mask the primary collection result.
+
+
+def _identity_host_selection(selected: list[str], current: str) -> list[str]:
+    if (not isinstance(selected, list) or len(selected) > 15 or len(set(selected)) != len(selected)
+            or any(not isinstance(item, str) or not re.fullmatch(r"host-[0-9]+", item) for item in [current, *selected])):
+        raise ValueError("Invalid explicit host selection")
+    return [current, *(item for item in selected if item != current)]
+
+
+def _raw_lun_identity(lun: Any) -> dict[str, Any]:
+    """Matched LUN only. Never returned to the sanitized reporting path."""
+    def name(value):
+        if value is None:
+            return None
+        data = _get(value, "data")
+        if not isinstance(data, (bytes, bytearray, list, tuple)):
+            raise FieldReadError("Durable name bytes unavailable")
+        return {"namespace": _get(value, "namespace"), "namespaceId": _get(value, "namespaceId"), "data": list(data)}
+    alternates, descriptors = _get(lun, "alternateName"), _get(lun, "descriptor")
+    alternates = [] if alternates is None else alternates
+    descriptors = [] if descriptors is None else descriptors
+    if not isinstance(alternates, (list, tuple)) or not isinstance(descriptors, (list, tuple)):
+        raise FieldReadError("LUN descriptors unavailable")
+    result = {field: _get(lun, field) for field in ("uuid", "canonicalName", "deviceName", "devicePath",
+        "vendor", "model", "revision", "serialNumber", "displayName", "lunType", "deviceType", "localDisk")}
+    result.update({"durableName": name(_get(lun, "durableName")),
+        "alternateName": [name(item) for item in alternates],
+        "descriptor": [{"id": _get(item, "id"), "quality": _get(item, "quality")} for item in descriptors]})
+    capacity = _get(lun, "capacity")
+    result["capacity"] = None if capacity is None else {"block": _get(capacity, "block"), "blockSize": _get(capacity, "blockSize")}
+    return result
 
 
 def _validate_fixture_snapshot(before: dict[str, Any], after: dict[str, Any]) -> None:
@@ -1184,24 +1276,159 @@ def _private_fixture_capture():
         logging.disable(previous)
 
 
+def _lun_discovery_module():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("rdm_lun_discovery", Path(__file__).with_name("rdm_lun_discovery.py"))
+    if spec is None or spec.loader is None:
+        raise RuntimeError("LUN discovery module unavailable")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _lun_identity_module():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("rdm_lun_identity", Path(__file__).with_name("rdm_lun_identity.py"))
+    if spec is None or spec.loader is None:
+        raise RuntimeError("LUN identity module unavailable")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _lun_local_path(path: Path, *, reading: bool = False, max_bytes: int = 8192) -> Path:
+    """All new mode artifacts stay owner-only, ignored and directly in scratch."""
+    root = Path(__file__).resolve().parents[1]
+    scratch = root / "tmp/rdm-lab-probes"
+    path = path if path.is_absolute() else root / path
+    if (scratch.is_symlink() or (root / "tmp").is_symlink() or not scratch.is_dir()
+            or path.is_symlink() or path.parent.resolve() != scratch.resolve()
+            or scratch.stat().st_uid != os.getuid() or stat.S_IMODE(scratch.stat().st_mode) != 0o700):
+        raise ValueError("Unsafe LUN discovery scratch path")
+    if reading:
+        info = path.stat()
+        if (type(max_bytes) is not int or not 0 < max_bytes <= 1048576
+                or not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or stat.S_IMODE(info.st_mode) != 0o600 or info.st_size > max_bytes):
+            raise ValueError("Unsafe LUN bindings file")
+    else:
+        _safe_output_path(path)
+    relative = path.relative_to(root).as_posix()
+    ignored = subprocess.run(["git", "check-ignore", "--quiet", "--", relative], cwd=root, capture_output=True, timeout=15)
+    tracked = subprocess.run(["git", "ls-files", "--error-unmatch", "--", relative], cwd=root, capture_output=True, timeout=15)
+    if ignored.returncode != 0 or tracked.returncode != 1:
+        raise ValueError("LUN artifact must be ignored and untracked")
+    return path
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", action="store_true", help="print the offline execution plan (default)")
     parser.add_argument("--execute", action="store_true", help="allow a live read-only probe")
     parser.add_argument("--allow-read-only-lab", action="store_true", help="second explicit acknowledgement required with --execute")
-    parser.add_argument("--mode", choices=("vcenter-soap", "vim-json", "ops", "ops-vm-discovery", "soap-ops", "both", "fixture-export"), default="both")
+    parser.add_argument("--mode", choices=("vcenter-soap", "vim-json", "ops", "ops-vm-discovery", "soap-ops", "both", "fixture-export", "lun-discovery", "lun-identity"), default="both")
     parser.add_argument("--profile", default="devel", help="VCF Operations profile for --mode ops")
     parser.add_argument("--output", type=Path, help="optional sanitized JSON report; never use a tracked path")
     parser.add_argument("--handoff-output", type=Path,
                         help="discovery-only local mode-0600 file holding a uniquely resolved Operations resource UUID")
+    parser.add_argument("--lun-bindings", type=Path, help="optional owner-only local JSON semantic bindings for observed LUN fields")
+    parser.add_argument("--lun-handoff-output", type=Path, help="optional secure complete LUN key handoff, only for a unique scoped match")
+    parser.add_argument("--lun-evidence-output", type=Path, help="optional secure unqualified candidate keys/field-name hints; never topology targets")
+    parser.add_argument("--storage-reference-file", type=Path, help="lun-identity only: ignored owner-0600 JSON containing operator-supplied naa")
     args = parser.parse_args(argv)
     if not args.execute:
         print("OFFLINE PLAN: no network calls. Re-run only after approval with --execute --allow-read-only-lab.")
         print("Modes: vcenter-soap, vim-json, ops, ops-vm-discovery, soap-ops, both. VIM JSON uses an environment-only session header.")
         print("fixture-export: development-only secure runtime fixture capture to its fixed local handoff.")
+        print("lun-discovery: read-only current-host RDM LUN identity plus caller-visible Operations kind census/candidates.")
+        print("lun-identity: SOAP-only descriptor qualification against secure operator storage reference; explicit selected hosts only.")
         return 0
     if not args.allow_read_only_lab:
         parser.error("--execute requires --allow-read-only-lab")
+    if args.storage_reference_file and args.mode != "lun-identity":
+        parser.error("--storage-reference-file requires --mode lun-identity")
+    if args.mode == "lun-identity":
+        if args.profile != "devel":
+            parser.error("lun-identity permits only --profile devel")
+        if not args.storage_reference_file or args.handoff_output or args.lun_bindings or args.lun_handoff_output:
+            parser.error("lun-identity requires --storage-reference-file and does not support candidate/VM handoff options")
+        created = []
+        try:
+            with _private_fixture_capture():
+                module = _lun_identity_module()
+                expected = json.loads(_lun_local_path(args.storage_reference_file, reading=True).read_text(encoding="utf-8"))
+                module.reference(expected)
+                output = _lun_local_path(args.output) if args.output else None
+                evidence = _lun_local_path(args.lun_evidence_output) if args.lun_evidence_output else None
+                if output is not None and output == evidence:
+                    raise ValueError("LUN identity outputs must differ")
+                selected = _env_csv("RDM_PROBE_LUN_HOST_MOIDS")
+                _identity_host_selection(selected, "host-0")
+                source = _capture_soap_fixture(include_identity=True, identity_hosts=selected)
+                report, private = module.analyze(source, expected)
+                for path, payload in ((evidence, private), (output, report)):
+                    if path is not None:
+                        _lun_local_path(path)
+                        _write_report(path, payload)
+                        info = path.stat()
+                        created.append((path, info.st_dev, info.st_ino))
+        except Exception:
+            for path, device, inode in created:
+                try:
+                    info = path.lstat()
+                    if (info.st_dev, info.st_ino) == (device, inode):
+                        path.unlink()
+                except OSError:
+                    pass
+            print(json.dumps({"mode": "lun-identity", "qualification": "BLOCKED",
+                              "reason": "source_reference_or_private_output_unavailable"}))
+            return 2
+        print(json.dumps(report, sort_keys=True))
+        return 0 if report["qualification"] == "CONDITIONALLY QUALIFIED" else 2
+    if args.mode != "lun-discovery" and (args.lun_bindings or args.lun_handoff_output or args.lun_evidence_output):
+        parser.error("LUN options require --mode lun-discovery")
+    if args.mode == "lun-discovery":
+        if args.handoff_output:
+            parser.error("lun-discovery uses --lun-handoff-output, not VM handoff")
+        module = None
+        created = []
+        try:
+            with _private_fixture_capture():
+                module = _lun_discovery_module()
+                output = _lun_local_path(args.output) if args.output else None
+                handoff = _lun_local_path(args.lun_handoff_output) if args.lun_handoff_output else None
+                evidence_path = _lun_local_path(args.lun_evidence_output) if args.lun_evidence_output else None
+                paths = [p for p in (output, handoff, evidence_path) if p is not None]
+                if len(paths) != len(set(paths)):
+                    raise ValueError("LUN discovery outputs must differ")
+                bindings = None
+                if args.lun_bindings:
+                    bindings = json.loads(_lun_local_path(args.lun_bindings, reading=True).read_text(encoding="utf-8"))
+                bindings = module.validate_bindings(bindings)
+                report, private, evidence = module.run(args.profile, _capture_soap_fixture, _release_operations_token, bindings)
+                report["private_evidence_written"] = evidence_path is not None
+                report["qualified_handoff_written"] = handoff is not None and private is not None
+                for path, payload in ((evidence_path, evidence), (handoff, private), (output, report)):
+                    if path is not None and payload is not None:
+                        _lun_local_path(path)
+                        _write_report(path, payload)
+                        info = path.stat()
+                        created.append((path, info.st_dev, info.st_ino))
+        except Exception as exc:
+            for path, device, inode in created:
+                try:
+                    info = path.lstat()
+                    if (info.st_dev, info.st_ino) == (device, inode):
+                        path.unlink()
+                except OSError:
+                    pass
+            reason = (exc.code if module is not None and isinstance(exc, module.LunDiscoveryError)
+                      and exc.code in module.LunDiscoveryError.CODES else "source_or_local_output_unavailable")
+            print(json.dumps({"mode": "lun-discovery", "status": "failed",
+                "recommendation": "INSUFFICIENT EVIDENCE", "reason": reason}))
+            return 2
+        print(json.dumps(report, sort_keys=True))
+        return 0
     if args.mode == "fixture-export":
         if args.output or args.handoff_output:
             parser.error("fixture-export uses only its fixed secure output")

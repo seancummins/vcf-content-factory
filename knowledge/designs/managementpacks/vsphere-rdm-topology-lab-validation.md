@@ -299,6 +299,25 @@ remain separate explicit approvals.
 
 ## Next proposed increment — RDM-to-LUN identity
 
+The offline [E3.1 assessment](../../context/reviews/rdm-topology-poc-e31-lun-identity-assessment.md)
+records **INSUFFICIENT EVIDENCE**, the observed storage-related kinds and exact
+additional read-only evidence needed; it does not approve live access or
+CanonicalLun creation.
+
+The [E3.2 operator procedure](vsphere-rdm-topology-e32-lun-discovery.md) adds an
+explicit read-only LUN-discovery mode. Its offline implementation does not
+establish live LUN inventory or authorize any topology modification.
+
+The [E3.3 CanonicalLun architecture](vsphere-rdm-topology-e33-canonical-lun.md)
+records the subsequently operator-reported discovery outcome and proposes global
+logical-unit identity. Actual LU-designator qualification remains a prerequisite;
+the design neither proves native LUN absence nor changes the installed POC.
+
+The [E3.4 qualification procedure](vsphere-rdm-topology-e34-identity-qualification.md)
+adds operator-initiated SOAP descriptor/reference comparison and bounded
+cross-host observation. Live identity qualification remains BLOCKED pending
+capture; no CanonicalLun or new topology is emitted.
+
 The existing VM → `RdmMapping` edge is the proven starting point. The missing
 storage endpoint is **not yet an established Operations LUN resource kind**.
 Neither a related Datastore nor a Virtual Disk metric instance proves that a

@@ -1,0 +1,62 @@
+# E4.9.3 — Independent focused security review
+
+## Verdict
+
+**APPROVE — 0 BLOCKING / 0 WARNING / 0 NIT.** This verdict applies to the offline implementation candidate whose `RdmTopologyDispatcher.java` SHA-256 is `3f465fd6abfe9c910fed7a55f0764ee271ec2ccad4dc6942d28bbb480ae798ba`. It authorizes no installation, live connection, account modification, or diagnostic execution. The local development build-12 package is also independently approved within the offline scope; see the package supplement below.
+
+If shipped as-is, an already configured fixture session can accept the genuine SDK's instance-less incremental configuration carriers while retaining its previously validated fixture and ownership; malformed updates retire the route with a fixed diagnostic code. The specific observed build-11 collector failure has not been reproduced from a captured real-platform call shape, so this is a verified SDK compatibility correction and reviewed offline candidate, not proven recovery of account 15903.
+
+## Contract and scope
+
+Read `.claude/agents/sdk-adapter-reviewer.md`, `knowledge/context/authoring/guide_reviewer_doctrine.md`, both SDK-adapter skill surfaces, the rules/lessons indexes and rules, author contract, architecture/ownership material, and prior E4.9/E4.9.1/E4.9.2 records. Authorities include RULE-001 (vendor behavior evidence), RULE-005 (validation), RULE-007 (identity), RULE-008 (credential/output protection), RULE-012 (defect registry), RULE-014 (local PAK versions), RULE-015 (reproducibility), and the SDK playbook's failure granularity, identity, logging, classpath isolation and gap-honesty requirements.
+
+Reviewed the full changed dispatcher read path and its delta against the retained build-11 source, the E493 carrier/rejection test matrix, full actual-SDK fixture lifecycle probe, and unchanged diagnostic/runtime/Operations credential and TLS boundaries. Repository/source remained read-only to this reviewer. The only retained write is this report; compiler scratch directories were under `/tmp` and removed. No `.env`, credential stores, secret values, live infrastructure, socket tests, downloads, installs, Git writes, or PAK builds were used.
+
+Registry check: `knowledge/context/defects.md` has no open defect whose `Affects:` names `rdm-topology-poc` or this RDM adapter. No local registry override exists. No closure, suppression, or waiver is proposed.
+
+## Independent evidence
+
+- All eight explicitly selected platform dependency JARs pass the supplied external `descriptor-libs/SHA256SUMS` manifest. The SDK SHA-256 is `2d53a91fc2b9a99d9b685ed10c1e37a471c2f71f04e7ae0fb2c53fdaa14b4f54`. These are local-only proprietary dependencies, not redistributable/reproducible from Git; appliance provenance remains operator-attested rather than re-acquired here.
+- Independently inspected actual SDK `AdapterBase.configure`, `applyConfiguration`, and `AdapterCache.update` bytecode. A null incoming instance resource is supported after the cached instance exists: the SDK preserves the instance configuration and applies monitoring/stopped/removed resource and attribute-policy updates. The former facade required an instance resource on every call. The bytecode proves this contract mismatch, not the exact shape of the reported live failing call.
+- Independently reran `scripts/run-dispatcher-tests.sh --fixture-lifecycle` with the authorized SDK, factory framework and all eight explicit external JAR paths, with no `tests/org` logging/platform shims: **E493DispatcherTest PASS 336**, **DispatcherTest PASS 348**, **full FixtureLifecycleProbe PASS 2324**, four fixture/mode scenarios across four original/dispatcher and controller/collector routes. Compilation targets Java 11; only the existing deprecation note is printed.
+- The full lifecycle uses genuine SDK configuration/cache/publication carriers, both SDK instance-ID setter forms, monitoring → stopped → removed → restored transitions, attribute-policy disable/restore, legacy/v2 fixture identities and additive topology. Delegate-seam tests separately verify mode/owner mismatch, diagnostic deltas, stopped/retired/mutated source, post-callback mutation, throwing/failed delegate, optional null/blank/unknown/duplicate settings and exact sanitized rejection strings. The delegate seam is not represented as platform lifecycle evidence.
+- Independently compiled all applicable production and test sources against the genuine SDK/framework/eight JARs, excluding `tests/org`, then ran **DiagnosticRuntimeTest PASS 243** and **IsolatedSoapTest PASS 22**. These are deterministic synthetic-input coordinator/framing tests using actual SDK carriers; no endpoint or platform decryption was exercised. TLS/socket integration tests were deliberately not run.
+- Independently reran the dependency inventory and actual SDK combined-descriptor loader: **PASS, 3 resource kinds / 1 credential kind**. Metadata presence alone was not treated as loader success.
+- Nested adapter `git diff --check` passed at the source-review checkpoint.
+
+## Safety conclusions
+
+1. **Narrow compatibility boundary.** The new branch accepts null-instance updates only with the existing adapter kind, active valid fixture route, same instance ID, and any supplied matching UUID/key. It checks the retained full source before forwarding and after the original SDK callback. The original delta is passed unchanged; it is not merged into or substituted for diagnostic configuration. Cold, stopped, invalid, discarded, ownership-changing and mutated-source sessions fail closed.
+2. **No hidden credential/trust mutation.** Delta carriers containing injected credentials, custom configuration or extended/trust configuration are rejected before calling the fixture SDK delegate. Diagnostic null-instance updates are rejected rather than re-arming or executing a diagnostic. No credential fallback, endpoint default, decryption substitute, file/environment secret source, or trust relaxation is introduced.
+3. **Mode semantics remain strict.** Absent mode retains the validated legacy fixture behavior. Explicit null, blank, unknown, duplicate and uniqueness-bearing mode settings still fail. Nonempty mixed diagnostic/fixture configuration still fails. Mode and instance latches remain intact. Failed calls retire the previously active route and cannot fall back to publication.
+4. **Value-free failure reasons.** Rejection diagnostics use a private enum and fixed `INVALID_CONFIGURATION reason=<ENUM>` suffix. Supplied field keys/values, fixture JSON, names, endpoints, credentials, exception messages, causes and stack traces are not appended. Delegate failure text is replaced with a fixed code. Tests assert exact strings even with deliberately sensitive-looking synthetic inputs and exception messages.
+5. **Diagnostic zero-publication fence remains intact.** The publishing fixture delegate is still created only for validated fixture selection. The diagnostic path constructs fresh empty actual SDK collect/discovery results, with no resource, relationship, resource metric, property or event payload. Existing cancellation/generation fences and one-shot rules are unchanged. Fixed adapter-level status/counts are intentional and are not resource data.
+6. **Existing strict transport/credential boundary unchanged.** Associated vCenter and injected Operations identities remain distinct SDK carriers. Private JVM/enterprise-CA chain validation, hostname/date checking, explicit endpoint syntax, direct no-proxy sockets, body/XML bounds and sanitized exceptions retain their existing behavior. This review does not newly qualify managed CA delivery, injected decryption/RBAC, collector routing/failover, restart authorization persistence or any live diagnostic execution.
+7. **Collector ABI retained.** Both the bare controller constructor and exact public `(String, Integer)` collector constructor remain. The constructor lazily forwards original SDK initialization arguments only after fixture route validation; diagnostic mode does not construct the publishing base.
+
+## Remaining qualification
+
+The supplied live evidence contains the generic failure timestamp/status, not the actual failing `AdapterConfig` shape or a reason suffix from the revised dispatcher. Blank/null optional-mode serialization remains an unproven hypothesis and was not relaxed. The smallest next evidence after an explicitly authorized controlled upgrade is the new fixed reason code (if configuration still fails), plus sanitized structural facts about whether the failing callback was full versus instance-less and its same-instance identity presence/match. Do not disclose values or credentials.
+
+The orchestrator/SDK reviewer owns generic validation, build, structural comparison and package review. This focused security approval does not substitute for those independent gates or for an operator-authorized upgrade retry. No live success claim is made from static review or synthetic fixtures.
+
+
+## Final package and documentation supplement
+
+**Final source/package verdict: APPROVE — 0 BLOCKING / 0 WARNING / 0 NIT.** Independently inspected local development artifact:
+
+`content/sdk-adapters/rdm-topology-poc/dist/vcfcf_sdk_rdm_topology_poc.0.0.0.12.pak`
+
+SHA-256: `a6aac9b73aa28e1f1e2c91c3cf24f09899a259681fe60a8cfee3e464a77b9752`.
+
+The new PAK and retained build 11 independently pass outer ZIP, inner `adapters.zip`, and both embedded JAR CRC/integrity and duplicate-entry checks. Registration retains exactly the existing `vcfcf_rdm_topology_poc` kind and `com.vcfcf.adapters.rdmtopologypoc.RdmTopologyDispatcher` entry class. `javap -public -s` on each actual packaged entry JAR independently confirms both exact public `()V` and `(Ljava/lang/String;Ljava/lang/Integer;)V` constructors; adapter classes were not loaded or initialized by that inspection.
+
+Both builds contain exactly the adapter entry JAR and `vcfcf-adapter-base.jar`. Namespace and filename inspection finds no proprietary SDK/platform, Log4j/Commons, SLF4J, JUnit or test/probe classes, nested dependency JARs, native libraries, Python/shell/executable runtime payloads or install hooks. Build 12's entry JAR contains 62 production classes and the unchanged factory framework contains 43 classes. No external SDK/descriptor/trust-manager dependency was copied into the package.
+
+The build-12 descriptor and factory framework JAR are byte-identical to build 11, respectively SHA-256 `e2208997811428a5368fed66b5726986126092008d68f46a1a0275667e0251df` and `b13cdfa98d5a23b1daf85485320b505bc38ce7a8c5ac269065d4f934a950004b`. The inner archive adds/removes no paths; only its version-bearing manifest/version text and entry JAR change. Within the entry JAR, the dispatcher is the only changed existing class, its private `Reason` and `Rejected` classes are the only additions, and all 59 other existing production classes are byte-identical. No entry class was removed. This corroborates that endpoint, credential, TLS, resource identity, relationship and diagnostic implementation classes were not changed by the packaged correction.
+
+Independently reviewed `docs/configuration-compatibility-e493.md`, the appended E4.9.3 section of `docs/same-kind-diagnostic.md`, and build-12 metadata. The docs accurately distinguish the reproduced SDK delta regression from the unconfirmed account-15903 cause, retain strict optional-mode handling, explain the exact offline test limitations, request only sanitized structural evidence, preserve existing identities/configuration, and require separate explicit authorization for any controlled same-kind upgrade or live evidence collection. They do not claim retained topology is collection proof or propose trust/credential relaxation.
+
+The orchestrator reports the pinned structural comparator result as 0 BLOCKING / 4 WARNING / 21 INFO. That comparator was not rerun by this focused security reviewer and is not represented as an independent security result; the independent SDK review/build gates remain responsible for it. No security finding is suppressed by those structural differences.
+
+Build 11 remains SHA-256 `250d58894c624178863779f44d9fcea5a89c9f5e9774fa4b102251f0313392ce`. The final frozen dispatcher source hash remains `3f465fd6abfe9c910fed7a55f0764ee271ec2ccad4dc6942d28bbb480ae798ba`. Source/package security review is complete; live recovery and the exact deployed failure cause remain unverified and require the explicitly authorized human-controlled next step described above.
