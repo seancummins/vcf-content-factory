@@ -221,6 +221,8 @@ def _parse_view_xml_to_dict(elem) -> dict:
         for col in columns:
             col.pop("subject", None)
 
+    fidelity = _parse_view_fidelity(elem)
+    _apply_view_column_fidelity(columns, fidelity)
     return {
         "id": view_id,
         "name": title,
@@ -232,6 +234,8 @@ def _parse_view_xml_to_dict(elem) -> dict:
             if len(subject_pairs) > 1 else []
         ),
         "columns": columns,
+        "subject_filter": fidelity["subject_filter"],
+        "summary": fidelity["summary"],
         "data_type": data_type,
         "presentation": presentation,
         "time_window": time_window,
@@ -498,7 +502,10 @@ def build_view_uuid_map(xml_dir: Path) -> dict[str, dict]:
 # View YAML writing
 # ---------------------------------------------------------------------------
 
-from ..dashboards.reverse import _parse_controls_meta, _trend_transformations_to_emit  # noqa: E402
+from ..dashboards.reverse import (
+    _parse_controls_meta, _trend_transformations_to_emit,
+    _parse_view_fidelity, _apply_view_column_fidelity,
+)  # noqa: E402
 from .extractor import _emit_view_extras  # noqa: E402
 
 

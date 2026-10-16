@@ -1,0 +1,7 @@
+{
+  "command": ".venv/bin/python -B tests/offline/run.py --sdk-jar /home/scummins/Documents/vmware-sdk/vrops-adapters-sdk-2.2.jar",
+  "exit_code": 0,
+  "summary": "2932 passed, 15 skipped, 1 deselected, 337 warnings in 197.69s (0:03:17)",
+  "log_sha256": "e362f2168fc2ae86104e6696d482f5653661ceed657deb5039ccc3f79768a115",
+  "provenance": "Actual completed exec session77932 after reboot; historical /tmp logs were absent."
+}

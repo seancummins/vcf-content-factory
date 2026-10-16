@@ -1,0 +1,8 @@
+{
+  "src/com/vcfcf/adapters/rdmtopologypoc/RdmTopologyDispatcher.java": "8abe662cbc06423c359b19cffffaa29fdc072e010f9e1bbe2642074ba5596260",
+  "tests/com/vcfcf/adapters/rdmtopologypoc/E493ColdStartTest.java": "b64ccb9cd720ed5e0d266623c50b1c3635fc97d1d4dcf4431d1ce34a8a744b61",
+  "tests/com/vcfcf/adapters/rdmtopologypoc/E493DispatcherTest.java": "5253191539bda3a9e21d66877b0a8526d4a9c9c5bd3324b269e8cdc95015d72d",
+  "tests/com/vcfcf/adapters/rdmtopologypoc/DispatcherTest.java": "c2f5c613944b3b9cfa8f8a3b2596651bcce4ac82d3cbd69919ff7881ed3cb00d",
+  "tests/com/vcfcf/adapters/rdmtopologypoc/FixtureLifecycleProbe.java": "8d460403df10bf8ba2103491b77997b0290dbe3a2784d981da524b00b083a351",
+  "scripts/run-dispatcher-tests.sh": "98b1aa53fc98d70938bdc00b3cc70415e3faa42e30d7f3b779b536924e6e1612"
+}

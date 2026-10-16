@@ -1,0 +1,18 @@
+OFFLINE_NATIVE_GUARD Landlock_ABI=10; externally read-only inputs; scratch=/tmp/vcfcf-offline-csixnxu4; child networking denied
+GUARDED_SUITE_WITH_EXCLUSION tests/test_core_row4_seams.py::test_offline_reverse_from_the_wheel_alone_matches_the_factory_path
+WHEEL_PREREQUISITES missing local prerequisites: setuptools>=64, setuptools-scm>=8, wheel; nothing installed
+PYTEST_ARGV ['/home/scummins/Documents/vcf-content-factory/.venv/bin/python', '-B', '-m', 'pytest', 'tests/test_view_reverse_fidelity.py', '--override-ini=addopts=', '-m', '', '-p', 'no:cacheprovider', '--basetemp=/tmp/vcfcf-offline-csixnxu4/pytest', '--deselect=tests/test_core_row4_seams.py::test_offline_reverse_from_the_wheel_alone_matches_the_factory_path', '-q', '-ra']
+........................................................................ [ 27%]
+........................................................................ [ 54%]
+........................................................................ [ 81%]
+................................................                         [100%]
+=============================== warnings summary ===============================
+tests/test_view_reverse_fidelity.py::test_source_xml_yaml_reload_is_byte_identical[instanced-dataclass]
+tests/test_view_reverse_fidelity.py::test_uniform_filters_preserve_types_group_order_and_optional_absence[dataclass]
+tests/test_view_reverse_fidelity.py::test_instanced_roles_flags_transformations_and_summary_survive[dataclass]
+tests/test_view_reverse_fidelity.py::test_factory_alias_callers_preserve_supported_xml[dataclass]
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view '[VCF Content Factory] Synthetic instanced reverse': one or more columns use an aggregating transformation (AVG/MAX/PERCENTILE/TRANSFORM_EXPRESSION) but no time_window is set. Columns will aggregate over the view's default window (typically 24 hours). Set time_window: {{unit: MONTHS, count: 6}} to make the window explicit.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+264 passed, 4 warnings in 0.56s

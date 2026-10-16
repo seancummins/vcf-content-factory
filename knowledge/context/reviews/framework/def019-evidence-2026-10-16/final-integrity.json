@@ -1,0 +1,15 @@
+{
+  "candidate_verified": 8,
+  "preserved_verified": 20,
+  "sdk_entries_verified": 6,
+  "approved_documentation_sha256": {
+    "knowledge/context/reviews/framework/def019-view-reverse-fidelity-2026-10-16.md": "d12dc505c2342cf5830a843e4a67c885adcafeeac7a0bdb26aff90debd3a6aa1",
+    "knowledge/designs/def019-view-reverse-fidelity.md": "965eb5a1bcb94451afb1f5e2a603c308ee3fc8d8bbcdf9b59afaca2bdd474ec1",
+    "knowledge/context/README.md": "25ec2030467a586c85a14b12c259b1e167de29b4d6201c712785a3e2c19fd1f5",
+    "knowledge/designs/def019-view-reverse-fidelity-checkpoint-2026-10-16.md": "f3501384e35679d9619eec9033857c78dbc0f4bdcca51e5d3b0d3db15dd2200c"
+  },
+  "sdk_jar_sha256": "2d53a91fc2b9a99d9b685ed10c1e37a471c2f71f04e7ae0fb2c53fdaa14b4f54",
+  "outer_head_unchanged": "f53bb603e0b112e4febe9acc09cb4d2c6b1f7315",
+  "outer_branch": "feature/rdm-topology-mp",
+  "result": "PASS"
+}

@@ -1,0 +1,48 @@
+{
+  "verdict": "APPROVE",
+  "command": ".venv/bin/python -B tests/offline/run.py --sdk-jar /home/scummins/Documents/vmware-sdk/vrops-adapters-sdk-2.2.jar",
+  "execution_session": 96071,
+  "exit_code": 0,
+  "summary": "2932 passed, 15 skipped, 1 deselected, 337 warnings in 191.72s",
+  "matrix": "264 passed, 4 warnings in 0.56s; exit 0",
+  "original_matrix": "261 failed, 3 passed, 4 warnings in 2.53s; expected exit 1",
+  "actual_validator_codes": {
+    "supermetrics": 0,
+    "dashboards": 0,
+    "customgroups": 0,
+    "symptoms": 0,
+    "alerts": 0,
+    "reports": 0,
+    "managementpacks": 0
+  },
+  "forward": {
+    "views": 26,
+    "sm_inputs": 41,
+    "warnings": 0,
+    "factory_imports": false,
+    "xml_sha256": "4448d9bcb3037e08845e706aef62912de3b6471e87ae46e7a654deec382bc288",
+    "comparison": "actual current XML hash equals recorded historical hash; old per-input manifest did not survive reboot"
+  },
+  "log_sha256": {
+    "full-independent.log": "b597baa83650fc24162a8c85f82ebe60353416b89b375fc006978065691f692f",
+    "validators-independent.log": "dbbcaa96632f37b99345cbba28e132be67175626fc6da39b80d2c553c2c1b15c",
+    "forward-independent.log": "a225c627f9f5572573f3fba8e9fd2bbe0346b8435e8a85fd37d6a124b4891033",
+    "matrix-independent.log": "cb7852a98cf72ec3035a02d16e1d82f9e9d48389efd563f29382af50fb7b9858",
+    "red-independent.log": "0c16f78c3b7161a820d2478fd473875066b221db475a56d436eb71d951fee27b"
+  },
+  "original_sha256": {
+    "src/vcfcf_core/extractor/extractor.py": "2eea0fc46e7109a068998a9cbacbc8efb719a1052fa136153f299b4832a3eee2",
+    "src/vcfcf_core/extractor/reverse_local.py": "68083d5a3c499f11a6cc3f3db769a04571377c1bc6c5ef42b1202316a5c9db39",
+    "src/vcfcf_core/dashboards/reverse.py": "d9e282575669d29548183eaf0a7b69c82ccba8edc0ada959faa2215c79f35cba"
+  },
+  "findings": {
+    "blocking": 0,
+    "warning": 0,
+    "nit": 0
+  },
+  "approved_documentation_sha256": {
+    "handoff.md": "965eb5a1bcb94451afb1f5e2a603c308ee3fc8d8bbcdf9b59afaca2bdd474ec1",
+    "context-index.md": "25ec2030467a586c85a14b12c259b1e167de29b4d6201c712785a3e2c19fd1f5",
+    "checkpoint.md": "f3501384e35679d9619eec9033857c78dbc0f4bdcca51e5d3b0d3db15dd2200c"
+  }
+}

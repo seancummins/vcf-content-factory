@@ -1,0 +1,10 @@
+{
+  "src/vcfcf_core/extractor/extractor.py": "9b88687523e44f21177f02069353fd3ff585891b4f31a762d36728a087e6a06f",
+  "src/vcfcf_core/extractor/reverse_local.py": "c0de95df8d58aa44da630d5678caf2e2c43ef38624a158aaad060104b858b52d",
+  "src/vcfcf_core/dashboards/reverse.py": "5ddb1f3980b7ba2a54f14b54fdde5ac8bfac680f9a8a3e3c08a910c53094a1f5",
+  "tests/test_view_reverse_fidelity.py": "e897e4960c2f2ea1435d0208101603575a44ed0e6b43a9d703396bd03758af49",
+  "tests/fixtures/view_reverse_fidelity_ordinary.xml": "8ffcfd7a68cf7cb1c81a9af1f1b2c3f8c8556b68c7aafddb839209ba4fd00f92",
+  "tests/fixtures/view_reverse_fidelity_filtered.xml": "7f0f77cb6a3eedfda429cc71ee7828f0ecf15f50788b4012b86a7e265578ea53",
+  "tests/fixtures/view_reverse_fidelity_instanced.xml": "19e41fe7495c0b98dfbe0fdfecc9ea4f3afd035bb7a8164f7f28b061f60a45ae",
+  "knowledge/context/wire-formats/view_reverse_fidelity.md": "e64e16efa3215c7365f154e452722fdcbec9daf9b643b70063d061aaaf23ceb0"
+}

@@ -56,6 +56,7 @@ These files cost almost nothing to scan and prevent re-deriving known knowledge.
 | `customgroup_import_format.md` | Custom group UI import envelope format |
 | `customgroup_relationship_grammar.md` | Custom group relationship grammar |
 | `view_column_wire_format.md` | View column wire format (XML attribute encoding) |
+| `view_reverse_fidelity.md` | DEF-019: supported filter, instanced-column and summary reverse contract; strict failures and synthetic regressions |
 | `pak_wire_format.md` | .pak wire format |
 | `auth_source_wire_formats.md` | Auth source wire formats |
 | `ui_import_formats.md` | UI import format investigation |
