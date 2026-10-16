@@ -133,7 +133,10 @@ _DESCRIBE_XML = textwrap.dedent("""\
 
 _JAVA_SRC = textwrap.dedent("""\
     package com.vcfcf.adapters.releaseflag;
-    public class ReleaseFlagAdapter {}
+    public class ReleaseFlagAdapter {
+        public ReleaseFlagAdapter() {}
+        public ReleaseFlagAdapter(String adapterDir, Integer instanceId) {}
+    }
 """)
 
 

@@ -513,6 +513,55 @@ def _compile(javac: str, classpath: str, sources: List[Path],
         print(f"  javac warnings:\n{result.stderr}", file=sys.stderr)
 
 
+def _validate_entry_constructor_contract(build_dir: Path, entry_class: str) -> None:
+    """Inspect declared JVM constructors without loading/executing adapter code.
+
+    The collector uses getConstructor(String.class, Integer.class); primitive
+    int, varargs, inherited constructors and nonpublic constructors do not meet
+    that ABI. The controller's bare describe path also needs public no-arg
+    construction. This is not a substitute for real SDK lifecycle testing.
+    """
+    prefix = "[entry-constructor-contract]"
+    if not re.fullmatch(r"[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*", entry_class):
+        raise SdkBuildError(f"{prefix} invalid entry_class binary name")
+    class_file = build_dir.joinpath(*entry_class.split(".")).with_suffix(".class")
+    if not class_file.is_file():
+        raise SdkBuildError(f"{prefix} compiled entry class not found: {entry_class}")
+    if class_file.stat().st_size > 16 * 1024 * 1024:
+        raise SdkBuildError(f"{prefix} entry class exceeds inspection size limit")
+    javap = shutil.which("javap")
+    if not javap:
+        raise SdkBuildError(f"{prefix} javap not on PATH; constructor ABI unverified")
+    try:
+        result = subprocess.run(
+            [javap, "-public", "-s", str(class_file)],
+            capture_output=True, text=True, timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise SdkBuildError(
+            f"{prefix} javap inspection failed ({type(exc).__name__}); ABI unverified"
+        ) from exc
+    if result.returncode or len(result.stdout) > 1024 * 1024:
+        raise SdkBuildError(f"{prefix} javap inspection failed; ABI unverified")
+    lines = [line.strip() for line in result.stdout.splitlines()]
+    header = next((line for line in lines if line.endswith("{")), "")
+    if not re.match(r"public (?:final )?class " + re.escape(entry_class) + r"(?:[ <{])", header):
+        raise SdkBuildError(f"{prefix} entry class must be public and concrete")
+    required = {
+        "()V": "public () controller constructor",
+        "(Ljava/lang/String;Ljava/lang/Integer;)V": "public (String, Integer) collector constructor",
+    }
+    for index, line in enumerate(lines[:-1]):
+        # Java 11 strictfp classes mark constructors ACC_STRICT, which javap
+        # displays before any generic parameters; neither changes their ABI.
+        if re.match(r"public (?:strictfp )?(?:<.*> )?" + re.escape(entry_class) + r"\(", line):
+            descriptor = lines[index + 1].removeprefix("descriptor: ")
+            required.pop(descriptor, None)
+    if required:
+        raise SdkBuildError(f"{prefix} missing " + "; ".join(required.values()))
+    print("  entry constructor ABI: public () and (String, Integer) verified (javap)", file=sys.stderr)
+
+
 def _write_adapter_properties(build_dir: Path, project: SdkProjectDef) -> None:
     """Write adapter.properties into the build dir (root of the entry JAR)."""
     props_content = (
@@ -3267,6 +3316,13 @@ def build_sdk_pak(project_dir: Path, output_dir: Optional[Path] = None,
             "pak-compare warn-only mode is not allowed on a release build: "
             "a release must pass the pak-compare gate."
         )
+    # The SDK loader rejects reserved separators in individual descriptor keys,
+    # even though fully qualified runtime MetricKeys legitimately contain them.
+    # Run this on direct/buildkit builds too, before compilation or packaging,
+    # while preserving the existing release/warn-only policy error precedence.
+    descriptor_errors = _validate_describe_key_contract(project_dir / "describe.xml")
+    if descriptor_errors:
+        raise SdkBuildError("\n".join(descriptor_errors))
     _stamp_build_version(project, release_build)
 
     # Step 1b: parse bundled_content (optional) — must happen before compile so
@@ -3332,6 +3388,9 @@ def build_sdk_pak(project_dir: Path, output_dir: Optional[Path] = None,
 
         # Step 4: compile
         _compile(javac, classpath, sources, build_dir)
+
+        # Validate the real collector/controller reflection ABI before packaging.
+        _validate_entry_constructor_contract(build_dir, project.entry_class)
 
         # Step 5: write adapter.properties into build dir
         _write_adapter_properties(build_dir, project)
@@ -3554,6 +3613,42 @@ def _validate_localization_key_contract(views: list, sm_scope: Optional[List[Pat
     return errors
 
 
+def _validate_describe_key_contract(describe_xml: Path) -> List[str]:
+    """Check the SDK's bounded ResourceGroup/ResourceAttribute key contract.
+
+    ResourceAttributeDescribe.isValidAttributeKey and
+    ResourceGroupDescribe.isValidGroupKey reject ``|`` and ``:``. These are
+    descriptor *segments*, not fully qualified runtime MetricKeys. A group
+    ``identity`` with leaf ``format`` correctly describes ``identity|format``.
+    This is not full XSD/platform validation and imposes no invented whitelist
+    on other characters or on unrelated identifier/traversal/configuration keys.
+    """
+    try:
+        root = ET.parse(describe_xml).getroot()
+    except (OSError, ET.ParseError, ValueError):
+        return ["[describe-key-contract] describe.xml is missing, unreadable or malformed XML"]
+
+    errors: List[str] = []
+    # Both the canonical namespace and the legacy namespace-free form occur in
+    # working descriptors. Do not interpret foreign extension elements as SDK
+    # ResourceAttribute declarations merely because their local names match.
+    namespace = "{http://schemas.vmware.com/vcops/schema}" if root.tag.startswith(
+        "{http://schemas.vmware.com/vcops/schema}"
+    ) else ""
+    for tag in ("ResourceGroup", "ResourceAttribute"):
+        for element in root.iter(namespace + tag):
+            key = element.get("key")
+            if key is None:
+                errors.append(f"[describe-key-contract] {tag} is missing required key")
+            elif "|" in key or ":" in key:
+                errors.append(
+                    f"[describe-key-contract] {tag} key={key!r} contains SDK-reserved "
+                    "'|' or ':'. Declare separate ResourceGroup/ResourceAttribute "
+                    "key segments; composite separators belong only in runtime MetricKeys."
+                )
+    return errors
+
+
 def validate_sdk_project(project_dir: Path) -> List[str]:
     """Validate a Tier 2 adapter project without building.
 
@@ -3577,6 +3672,8 @@ def validate_sdk_project(project_dir: Path) -> List[str]:
     describe_xml = project_dir / "describe.xml"
     if not describe_xml.is_file():
         errors.append(f"describe.xml not found in {project_dir}")
+    else:
+        errors.extend(_validate_describe_key_contract(describe_xml))
 
     src_dir = project_dir / "src"
     if not src_dir.is_dir():
@@ -3629,18 +3726,20 @@ def validate_sdk_project(project_dir: Path) -> List[str]:
             classpath = _build_classpath(project_dir)
             sources = _find_sources(project_dir)
             with tempfile.TemporaryDirectory(prefix="vcfcf-validate-") as tmpdir:
-                _compile(javac, classpath, sources, Path(tmpdir) / "classes")
+                build_dir = Path(tmpdir) / "classes"
+                _compile(javac, classpath, sources, build_dir)
+                _validate_entry_constructor_contract(build_dir, project.entry_class)
         except SdkBuildError as exc:
             errors.append(f"compile check failed: {exc}")
     elif not javac:
         print(
-            "  validate-sdk: javac not on PATH — skipping compile check",
+            "  validate-sdk: javac not on PATH — skipping compile/constructor ABI checks (unverified)",
             file=sys.stderr,
         )
     elif not _sdk_jar_present:
         print(
             "  validate-sdk: vrops-adapters-sdk-*.jar not in adapter_runtime/ "
-            "and VCFCF_SDK_JAR not set — skipping compile check",
+            "and VCFCF_SDK_JAR not set — skipping compile/constructor ABI checks (unverified)",
             file=sys.stderr,
         )
 
