@@ -3,17 +3,23 @@
 Current capability boundaries the orchestrator should communicate
 to users early, rather than discovering mid-workflow.
 
-## 1. Dashboard widget types
+## 1. Dashboard widget types and target versions
 
-Dashboard authoring supports 10 widget types covering ~94% of
-observed usage: `ResourceList`, `View`, `TextDisplay`, `Scoreboard`,
-`MetricChart`, `HealthChart`, `ParetoAnalysis`, `Heatmap`,
-`AlertList`, `ProblemAlertsList`. `PropertyList` (47 uses on the
-survey instance) is the highest-value remaining gap. Other
-unsupported types (~14 uncommon variants, ~91 total observed uses)
-require renderer expansion via `tooling` with api-explorer to
-document the wire format. If a user requests a dashboard with
-unsupported widget types, set expectations before delegating.
+The factory loader/renderer support ResourceList, View, TextDisplay,
+Scoreboard, MetricChart, HealthChart, ParetoAnalysis, AlertList,
+ProblemAlertsList, Heatmap, PropertyList, ResourceRelationshipAdvanced,
+Section and AlertVolume. PropertyList and ResourceRelationshipAdvanced
+are implemented; older survey percentages are not current capability
+measurements. See [loader](../../src/vcfcf_core/dashboards/loader.py) and
+[renderer](../../src/vcfcf_core/dashboards/render.py).
+
+Factory support does not imply target-version support. Section is absent
+on the recorded 9.0.2 build and aborts that dashboard's pak import; consult
+the [version lesson](../lessons/unknown-widget-type-aborts-pak-dashboard-import.md)
+and [recorded widget-type list](api-surface/summary_dashboard_pak_binding.md).
+SparklineChart and other types outside the loader's accepted set still
+need source-supported renderer work and a concrete requirement. State
+the actual gap before delegating, rather than promising a replacement.
 
 ## 2. Policy enablement — CLI targets Default Policy only
 
@@ -366,41 +372,26 @@ Authority:
 §"Per-row filtering: IT EXISTS" (15-variant matrix, devel 9.1).
 Mechanism discovered by the user, 2026-07-27.
 
-## Summary dashboards: no Suite API, no pak binding, UI layer only
+## Summary dashboard binding: supported pak mechanism, version-specific limits
 
-VCF Ops can show a chosen dashboard on an object's Summary tab per object
-type ("Manage Summary Dashboards" in the UI). Two paths that look like they
-should work do not, and one undocumented path does.
+Pak binding is supported through `content/dashboards/dashboards.properties`;
+the older conclusion that no pak binding exists was superseded by captured
+vendor examples and installed behavior. The Suite API is not the documented
+binding path. The factory also has a UI-layer `bind-summary` command.
+See [binding contract and evidence](api-surface/summary_dashboard_pak_binding.md)
+and [UI assignment shape](api-surface/summary_dashboard_assignment.md).
 
-**Does not work: the Suite API.** No endpoint, public or internal. All four
-OpenAPI specs searched by path and full body text (990 paths); zero contain
-"dash". Consistent with dashboards having no REST CRUD at all.
+Successful assignment alone does not prove a usable Summary page. The
+recorded 9.0.2 devel case bound an unmaterialized clone with blank widget
+configuration. Later 9.1.1 observations differ; do not generalize that
+one instance's failure into a universal lack of support. Verify both the
+source and bound template's materialization/configuration when a live
+check is specifically approved. The [parked investigation and evening
+update](investigations/2026-10-13-summary-dashboard-parked.md) preserve the
+owner's decision, corrected evidence and remaining choices.
 
-**Does not work: shipping it in a pak.** Hard negative, established across
-51 vendor paks. `describeSchema.xsd` is byte-identical across pak
-generations and `ResourceKindType` has eight attributes, none binding a
-dashboard. Pak content is a closed taxonomy with no mapping file, and the
-string "summary" appears in zero install scripts corpus-wide.
-
-**Does not work: the content-import zip.** The per-dashboard field
-inventory carries no summary/default field (checked against 5+ specimens).
-`homeTab` is the per-user landing tab, not this; `dashboardNavigations` is
-the Dashboard Navigation drill-down (source widget to target dashboard,
-optionally naming receiving widgets on the target), not a summary binding.
-
-**Does work: the Struts UI layer.** `POST /ui/dashboard.action` with
-`mainAction=associateResourceKindDashboards`, session-cookie auth plus CSRF
-token, keyed by resourceKind, bulk (one call carries the whole map). Full
-wire shape, the deterministic resourceKindId formula, and the support
-caveats are in
-[`api-surface/summary_dashboard_assignment.md`](api-surface/summary_dashboard_assignment.md).
-
-**Two traps.** A dashboard *named* "Summary" or "Details" is not wired to
-anything; several vendor paks ship such names as ordinary navigable
-dashboards. And each assignment materializes an independent server-side
-template rather than sharing one dashboard, so whether an edit to the
-source dashboard propagates to existing assignments is unverified and
-should be answered before designing around it.
+The #200 workaround remains parked. This documentation authorizes no
+rebind, post-install script, dashboard deletion or other live change.
 
 ## Pak install is UI-only (not scriptable via Suite API)
 

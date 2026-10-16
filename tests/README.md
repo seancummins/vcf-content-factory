@@ -35,8 +35,8 @@ python3 -m pytest
 ```
 
 `pyproject.toml`'s `[tool.pytest.ini_options]` sets `addopts = -m "not slow"`.
-Running plain `pytest` skips the heavyweight integration tests and completes
-in under 30 seconds.
+Running plain `pytest` deselects tests marked `slow`; it is not the full
+suite. Runtime depends on the host and selected tests.
 
 ### Full suite locally
 
@@ -49,6 +49,31 @@ Or with parallelism (respects `real_corpus` isolation groups):
 ```
 python3 -m pytest -m "" --override-ini="addopts=" -n auto --dist=loadgroup
 ```
+
+### Guarded offline regression (opt-in Linux path)
+
+When work forbids real credential loading, networking, downloads and source
+writes, use the separate [offline runner](offline/README.md):
+
+```sh
+.venv/bin/python -B tests/offline/run.py --smoke
+.venv/bin/python -B tests/offline/run.py --sdk-jar /absolute/path/to/authorized-sdk.jar
+```
+
+Use an already provisioned interpreter. The SDK path is optional and
+nonsecret; no SDK is fetched. The runner requires externally read-only
+inputs and working Linux native restrictions, and fails before pytest if
+they are unavailable. It does not remount or alter host security settings.
+It uses unique private scratch space and propagates raw pytest status.
+
+The selected factory suite is serial, with the default slow filter cleared.
+Exactly the wheel-alone test is deselected because its current fixture can
+provision build dependencies, write source metadata and install a wheel.
+Ordinary dependency/reference/fixture skips remain visible. Synthetic dotenv
+fixtures work inside scratch; real dotenv discovery is suppressed. This is
+an explicit guarded execution variant, not an unmodified ambient run, a
+complete wheel gate or proof of live operation. Ordinary commands above
+remain the local/CI workflow and do not provide those restrictions.
 
 ### Parallel fast subset
 
@@ -83,6 +108,7 @@ Files currently marked `slow` at module level:
 | `test_cli_phase4.py` | factory copy + validators (~8s/test) |
 | `test_release_builder_phase2.py` | zip construction (~5s/test) |
 | `test_validate_content_hook.py` | subprocess validator calls |
+| `test_discrete_builder_builtin_metric_enables.py` | discrete build/installer metric-enablement integration |
 
 ### `real_corpus`
 
@@ -112,10 +138,9 @@ The exceptions inside `test_publish_phase3.py`:
   `slow` (~3s/test with the validator stubbed).
 
 `test_validate_content_hook.py` is marked `slow` but **NOT** `real_corpus`.
-It is hermetic: it sets `VCFCF_CONTENT_ROOT` to a `tmp_path`-based copy of
-the corpus for every test, so it never reads from or writes to the real
-`content/` directories.  It is safe to run on any xdist worker in parallel
-with other workers.
+It reads the real content corpus to seed `tmp_path` copies, then sets
+`VCFCF_CONTENT_ROOT` so validators operate on those copies. It does not
+mutate the real corpus and is safe on any xdist worker.
 
 `test_cli_phase4.py` and `test_release_builder_phase2.py` are marked `slow`
 but **not** `real_corpus` because they operate on private temp-directory copies
@@ -130,9 +155,14 @@ All tests that do NOT carry `real_corpus` are designed to be fixture-isolated:
   test class.
 - `test_validate_content_hook.py` builds a `tmp_path` workspace and sets
   `VCFCF_CONTENT_ROOT` so the hook subprocess resolves all `content/…` paths
-  against that temp tree — the real `content/` directories are never touched.
-- No test mutates `content/`, `bundles/releases/`, or any shared repository
-  state outside of the `real_corpus` group.
+  against that temp tree; initial fixture seeding reads real content, while
+  validator writes remain confined to the copy.
+- The RDM probe's report/handoff tests use a fixture-controlled module path
+  beneath `tmp_path`, preserving permission and exclusive-create assertions
+  without touching the real operator scratch directory.
+- Tests are intended to isolate writes; the guarded offline command enforces
+  read-only source inputs and scratch-only data writes. Keep new subprocess
+  and filesystem tests within that contract instead of assuming isolation.
 
 `tests/managementpacks/` and all the validator/loader unit tests are
 stateless and safe for full parallelism with `-n auto`.
@@ -151,3 +181,22 @@ python3 -m pytest tests/ -v --tb=short -n auto --dist=loadgroup --override-ini="
 `--dist=loadgroup` ensures `xdist_group("real_corpus")` tests are colocated on
 one worker so the publish tests (which scan the real content/ corpus) never
 execute concurrently.
+
+
+## Offline full-suite triage
+
+The [historical E4.9.3 run](../knowledge/context/reviews/framework/rdm-e493-full-suite.md)
+reported 2,649 passed, 15 skipped, one deselected and three failed. That
+history is retained unchanged. The two RDM writer tests used a real shared
+scratch path; the Git-128/no-repository test assumed ancestor `.git` metadata
+was inspectable on the host. Their fixture isolation is corrected without
+changing production checks, expected messages, mode 0600, exclusive-create
+or exact-content assertions. New runs must report their own raw results.
+
+The wheel-alone test is not an allowed failure or a passing test. Its
+explicit offline exclusion remains until an approved isolated packaging
+run has preprovided build inputs; the current interpreter lacks setuptools,
+setuptools_scm and wheel. Do not download/install dependencies or weaken
+the test to remove that limit. See the
+[priorities and cleanup record](../knowledge/designs/content-factory-next-work-2026-10-16.md)
+and [runner limits](offline/README.md).

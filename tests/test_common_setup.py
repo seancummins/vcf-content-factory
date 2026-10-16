@@ -1258,9 +1258,24 @@ def test_a_128_with_no_git_anywhere_above_reads_as_not_a_repo(
     status cannot distinguish it from a broken repo, but the walk up
     the tree can: no `.git` entry anywhere above means nothing there
     could commit the file, and the confident wording is honest."""
+    resolved = tmp_path.resolve()
+    git_entries = tuple(parent / ".git" for parent in (resolved, *resolved.parents))
+    probed = []
+    real_lstat = Path.lstat
+
+    def absent_git_entry(path, *args, **kwargs):
+        # Isolate this case's filesystem facts from real ancestor repositories
+        # and unreadable ancestors; the production walk still probes each one.
+        if path in git_entries:
+            probed.append(path)
+            raise FileNotFoundError(path)
+        return real_lstat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "lstat", absent_git_entry)
     monkeypatch.setenv("PATH", str(_stub_git(tmp_path, 128)))
     verdict = sc._gitignore_status(tmp_path / ".env")
     assert verdict == "its directory is not a git repo, so nothing there could commit it"
+    assert probed == list(git_entries)
 
 
 def test_a_failing_git_walk_degrades_to_could_not_determine(

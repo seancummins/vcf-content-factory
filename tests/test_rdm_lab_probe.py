@@ -180,7 +180,8 @@ def test_token_release_failure_is_recorded_without_raising():
     assert cleanup == {"attempted": True, "status": "release_exception"}
 
 
-def test_report_creation_is_exclusive_and_restrictive(tmp_path):
+def test_report_creation_is_exclusive_and_restrictive(tmp_path, monkeypatch):
+    monkeypatch.setattr(probe, "__file__", str(tmp_path / "scripts" / "rdm_lab_probe.py"))
     repo_root = Path(probe.__file__).parents[1]
     scratch = repo_root / "tmp" / "rdm-lab-probes"
     output = scratch / "test-exclusive-report.json"
@@ -244,7 +245,8 @@ def test_vm_discovery_never_selects_multiple_or_incomplete_pair_matches():
     assert handoff is None
 
 
-def test_ops_handoff_is_restricted_and_contains_only_local_operator_input():
+def test_ops_handoff_is_restricted_and_contains_only_local_operator_input(tmp_path, monkeypatch):
+    monkeypatch.setattr(probe, "__file__", str(tmp_path / "scripts" / "rdm_lab_probe.py"))
     repo_root = Path(probe.__file__).parents[1]
     handoff = repo_root / "tmp" / "rdm-lab-probes" / "test-ops-handoff.json"
     if handoff.exists():
