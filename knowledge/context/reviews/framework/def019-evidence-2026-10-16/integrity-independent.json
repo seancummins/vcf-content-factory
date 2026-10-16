@@ -1,0 +1,15 @@
+{
+  "candidate": {
+    "checked": 8,
+    "mismatches": []
+  },
+  "preserved": {
+    "checked": 20,
+    "mismatches": []
+  },
+  "sdk": {
+    "checked": 6,
+    "mismatches": []
+  },
+  "pak_sha256": "96d6293f3858bb13e625f52188b515d72e73c9f87ae46debd2ba7e50b30c68ae"
+}

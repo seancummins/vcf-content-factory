@@ -497,6 +497,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="write the full report to FILE in addition to stdout",
     )
 
+    ppc.add_argument("--policy", choices=("legacy", "upgrade", "structural"), default="legacy")
+    ppc.add_argument("--reference-sha256", default=None)
+    pbsdk.add_argument("--pak-compare-policy", choices=("legacy", "upgrade", "structural"), default="legacy")
+    pbsdk.add_argument("--pak-compare-reference", default=None)
+    pbsdk.add_argument("--pak-compare-reference-sha256", default=None)
     return p
 
 
@@ -514,6 +519,9 @@ def main() -> int:
             pak_path = build_sdk_pak(
                 project_dir, output_dir,
                 pak_compare_warn_only=args.pak_compare_warn_only,
+                pak_compare_policy=args.pak_compare_policy,
+                pak_compare_reference=args.pak_compare_reference,
+                pak_compare_reference_sha256=args.pak_compare_reference_sha256,
             )
             print(f"Built: {pak_path}")
             return 0
@@ -575,7 +583,7 @@ def _pak_compare(args) -> int:
         if not ref_dir.is_dir():
             print(f"ERROR: --reference-dir not a directory: {ref_dir}", file=sys.stderr)
             return 1
-        results = compare_pak_directory(factory, ref_dir)
+        results = compare_pak_directory(factory, ref_dir, policy=getattr(args, "policy", "legacy"), reference_sha256=getattr(args, "reference_sha256", None))
         if not results:
             print(f"No .pak files found in {ref_dir}", file=sys.stderr)
             return 1
@@ -587,7 +595,7 @@ def _pak_compare(args) -> int:
         if not ref.exists():
             print(f"ERROR: reference pak not found: {ref}", file=sys.stderr)
             return 1
-        result = compare_paks(factory, ref)
+        result = compare_paks(factory, ref, policy=getattr(args, "policy", "legacy"), reference_sha256=getattr(args, "reference_sha256", None))
         _emit(format_report(result))
         results = [(ref, result)]
 

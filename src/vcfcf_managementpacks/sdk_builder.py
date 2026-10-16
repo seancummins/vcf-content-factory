@@ -513,6 +513,55 @@ def _compile(javac: str, classpath: str, sources: List[Path],
         print(f"  javac warnings:\n{result.stderr}", file=sys.stderr)
 
 
+def _validate_entry_constructor_contract(build_dir: Path, entry_class: str) -> None:
+    """Inspect declared JVM constructors without loading/executing adapter code.
+
+    The collector uses getConstructor(String.class, Integer.class); primitive
+    int, varargs, inherited constructors and nonpublic constructors do not meet
+    that ABI. The controller's bare describe path also needs public no-arg
+    construction. This is not a substitute for real SDK lifecycle testing.
+    """
+    prefix = "[entry-constructor-contract]"
+    if not re.fullmatch(r"[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*", entry_class):
+        raise SdkBuildError(f"{prefix} invalid entry_class binary name")
+    class_file = build_dir.joinpath(*entry_class.split(".")).with_suffix(".class")
+    if not class_file.is_file():
+        raise SdkBuildError(f"{prefix} compiled entry class not found: {entry_class}")
+    if class_file.stat().st_size > 16 * 1024 * 1024:
+        raise SdkBuildError(f"{prefix} entry class exceeds inspection size limit")
+    javap = shutil.which("javap")
+    if not javap:
+        raise SdkBuildError(f"{prefix} javap not on PATH; constructor ABI unverified")
+    try:
+        result = subprocess.run(
+            [javap, "-public", "-s", str(class_file)],
+            capture_output=True, text=True, timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise SdkBuildError(
+            f"{prefix} javap inspection failed ({type(exc).__name__}); ABI unverified"
+        ) from exc
+    if result.returncode or len(result.stdout) > 1024 * 1024:
+        raise SdkBuildError(f"{prefix} javap inspection failed; ABI unverified")
+    lines = [line.strip() for line in result.stdout.splitlines()]
+    header = next((line for line in lines if line.endswith("{")), "")
+    if not re.match(r"public (?:final )?class " + re.escape(entry_class) + r"(?:[ <{])", header):
+        raise SdkBuildError(f"{prefix} entry class must be public and concrete")
+    required = {
+        "()V": "public () controller constructor",
+        "(Ljava/lang/String;Ljava/lang/Integer;)V": "public (String, Integer) collector constructor",
+    }
+    for index, line in enumerate(lines[:-1]):
+        # Java 11 strictfp classes mark constructors ACC_STRICT, which javap
+        # displays before any generic parameters; neither changes their ABI.
+        if re.match(r"public (?:strictfp )?(?:<.*> )?" + re.escape(entry_class) + r"\(", line):
+            descriptor = lines[index + 1].removeprefix("descriptor: ")
+            required.pop(descriptor, None)
+    if required:
+        raise SdkBuildError(f"{prefix} missing " + "; ".join(required.values()))
+    print("  entry constructor ABI: public () and (String, Integer) verified (javap)", file=sys.stderr)
+
+
 def _write_adapter_properties(build_dir: Path, project: SdkProjectDef) -> None:
     """Write adapter.properties into the build dir (root of the entry JAR)."""
     props_content = (
@@ -2365,7 +2414,9 @@ class PakCompareGateError(SdkBuildError):
 
 
 def _run_pak_compare(pak_path: Path, *, release_build: bool = False,
-                     warn_only: bool = False) -> None:
+                     warn_only: bool = False, policy: str = "legacy",
+                     reference_pak: Optional[Path] = None,
+                     reference_sha256: Optional[str] = None) -> None:
     """Run pak-compare against the SDK reference paks and gate on the result.
 
     Every ``*.pak`` under the reference directory is compared and the gate
@@ -2382,14 +2433,23 @@ def _run_pak_compare(pak_path: Path, *, release_build: bool = False,
     logged and skipped, because a factory checkout has no reference pak
     until one is placed under tmp/reference_paks/.
     """
-    sdk_paks = sorted(_REFERENCES_DIR.glob("*.pak")) if _REFERENCES_DIR.is_dir() else []
+    if release_build and warn_only:
+        raise PakCompareGateError("pak-compare warn-only mode is not allowed on a release build")
+    if policy not in {"legacy", "upgrade", "structural"}:
+        raise PakCompareGateError("unknown pak-compare policy")
+    if policy == "structural" and (not reference_pak or not reference_sha256):
+        raise PakCompareGateError("structural build gate requires exact reference PAK and SHA-256")
+    if reference_sha256 and not reference_pak:
+        raise PakCompareGateError("reference SHA-256 requires exact reference PAK")
+    sdk_paks = [Path(reference_pak)] if reference_pak else (sorted(_REFERENCES_DIR.glob("*.pak")) if _REFERENCES_DIR.is_dir() else [])
     if not sdk_paks:
         msg = (
             f"pak-compare: no reference .pak found in {_REFERENCES_DIR}"
         )
-        if release_build:
+        if release_build or policy != "legacy":
             raise PakCompareGateError(
                 f"{msg}; a release build cannot skip the pak-compare gate."
+                if release_build else f"{msg}; explicit {policy} policy cannot skip evaluation."
             )
         print(f"  {msg}; skipping comparison (dev build).", file=sys.stderr)
         return
@@ -2400,15 +2460,21 @@ def _run_pak_compare(pak_path: Path, *, release_build: bool = False,
         file=sys.stderr,
     )
     try:
-        from .pak_compare import compare_pak_directory
+        from .pak_compare import compare_pak_directory, compare_paks, format_report
 
         # Gate on the CLOSEST reference (compare_pak_directory sorts
         # closest-first), the same rule the pak-compare CLIs use.
-        best_ref, result = compare_pak_directory(pak_path, _REFERENCES_DIR)[0]
+        if reference_pak:
+            best_ref = Path(reference_pak)
+            result = compare_paks(pak_path, best_ref, policy=policy, reference_sha256=reference_sha256)
+        else:
+            best_ref, result = compare_pak_directory(pak_path, _REFERENCES_DIR, policy=policy)[0]
+        if policy != "legacy":
+            print(format_report(result), file=sys.stderr)
         print(f"  pak-compare: closest reference {best_ref.name}", file=sys.stderr)
     except Exception as exc:
         msg = f"pak-compare: failed to run comparison: {exc}"
-        if warn_only:
+        if warn_only and policy == "legacy":
             print(f"  WARNING (warn-only): {msg}", file=sys.stderr)
             return
         raise PakCompareGateError(msg) from exc
@@ -2421,7 +2487,7 @@ def _run_pak_compare(pak_path: Path, *, release_build: bool = False,
         )
         for item in blockings:
             print(f"    BLOCKING: {item.message}", file=sys.stderr)
-        if warn_only:
+        if warn_only and policy == "legacy":
             print(
                 "  pak-compare: warn-only mode, build NOT failed. This pak "
                 "failed the install gate and must not be installed or shipped.",
@@ -3204,7 +3270,10 @@ def _generate_docs(project_dir: Path, version_string: str) -> None:
 
 
 def build_sdk_pak(project_dir: Path, output_dir: Optional[Path] = None,
-                  *, pak_compare_warn_only: bool = False) -> Path:
+                  *, pak_compare_warn_only: bool = False,
+                  pak_compare_policy: str = "legacy",
+                  pak_compare_reference: Optional[Path] = None,
+                  pak_compare_reference_sha256: Optional[str] = None) -> Path:
     """End-to-end Tier 2 SDK adapter build pipeline.
 
     Args:
@@ -3247,6 +3316,13 @@ def build_sdk_pak(project_dir: Path, output_dir: Optional[Path] = None,
             "pak-compare warn-only mode is not allowed on a release build: "
             "a release must pass the pak-compare gate."
         )
+    # The SDK loader rejects reserved separators in individual descriptor keys,
+    # even though fully qualified runtime MetricKeys legitimately contain them.
+    # Run this on direct/buildkit builds too, before compilation or packaging,
+    # while preserving the existing release/warn-only policy error precedence.
+    descriptor_errors = _validate_describe_key_contract(project_dir / "describe.xml")
+    if descriptor_errors:
+        raise SdkBuildError("\n".join(descriptor_errors))
     _stamp_build_version(project, release_build)
 
     # Step 1b: parse bundled_content (optional) — must happen before compile so
@@ -3312,6 +3388,9 @@ def build_sdk_pak(project_dir: Path, output_dir: Optional[Path] = None,
 
         # Step 4: compile
         _compile(javac, classpath, sources, build_dir)
+
+        # Validate the real collector/controller reflection ABI before packaging.
+        _validate_entry_constructor_contract(build_dir, project.entry_class)
 
         # Step 5: write adapter.properties into build dir
         _write_adapter_properties(build_dir, project)
@@ -3382,13 +3461,18 @@ def build_sdk_pak(project_dir: Path, output_dir: Optional[Path] = None,
         pak_path,
         release_build=release_build,
         warn_only=pak_compare_warn_only,
+        policy=pak_compare_policy,
+        reference_pak=pak_compare_reference,
+        reference_sha256=pak_compare_reference_sha256,
     )
 
     return pak_path
 
 
 def _gate_built_pak(pak_path: Path, *, release_build: bool,
-                    warn_only: bool) -> None:
+                    warn_only: bool, policy: str = "legacy",
+                    reference_pak: Optional[Path] = None,
+                    reference_sha256: Optional[str] = None) -> None:
     """Run the pak-compare gate on a freshly built pak.
 
     On failure a release build's pak is deleted, so no later CI step (an
@@ -3400,6 +3484,9 @@ def _gate_built_pak(pak_path: Path, *, release_build: bool,
             pak_path,
             release_build=release_build,
             warn_only=warn_only,
+            policy=policy,
+            reference_pak=reference_pak,
+            reference_sha256=reference_sha256,
         )
     except PakCompareGateError:
         if release_build:
@@ -3526,6 +3613,42 @@ def _validate_localization_key_contract(views: list, sm_scope: Optional[List[Pat
     return errors
 
 
+def _validate_describe_key_contract(describe_xml: Path) -> List[str]:
+    """Check the SDK's bounded ResourceGroup/ResourceAttribute key contract.
+
+    ResourceAttributeDescribe.isValidAttributeKey and
+    ResourceGroupDescribe.isValidGroupKey reject ``|`` and ``:``. These are
+    descriptor *segments*, not fully qualified runtime MetricKeys. A group
+    ``identity`` with leaf ``format`` correctly describes ``identity|format``.
+    This is not full XSD/platform validation and imposes no invented whitelist
+    on other characters or on unrelated identifier/traversal/configuration keys.
+    """
+    try:
+        root = ET.parse(describe_xml).getroot()
+    except (OSError, ET.ParseError, ValueError):
+        return ["[describe-key-contract] describe.xml is missing, unreadable or malformed XML"]
+
+    errors: List[str] = []
+    # Both the canonical namespace and the legacy namespace-free form occur in
+    # working descriptors. Do not interpret foreign extension elements as SDK
+    # ResourceAttribute declarations merely because their local names match.
+    namespace = "{http://schemas.vmware.com/vcops/schema}" if root.tag.startswith(
+        "{http://schemas.vmware.com/vcops/schema}"
+    ) else ""
+    for tag in ("ResourceGroup", "ResourceAttribute"):
+        for element in root.iter(namespace + tag):
+            key = element.get("key")
+            if key is None:
+                errors.append(f"[describe-key-contract] {tag} is missing required key")
+            elif "|" in key or ":" in key:
+                errors.append(
+                    f"[describe-key-contract] {tag} key={key!r} contains SDK-reserved "
+                    "'|' or ':'. Declare separate ResourceGroup/ResourceAttribute "
+                    "key segments; composite separators belong only in runtime MetricKeys."
+                )
+    return errors
+
+
 def validate_sdk_project(project_dir: Path) -> List[str]:
     """Validate a Tier 2 adapter project without building.
 
@@ -3549,6 +3672,8 @@ def validate_sdk_project(project_dir: Path) -> List[str]:
     describe_xml = project_dir / "describe.xml"
     if not describe_xml.is_file():
         errors.append(f"describe.xml not found in {project_dir}")
+    else:
+        errors.extend(_validate_describe_key_contract(describe_xml))
 
     src_dir = project_dir / "src"
     if not src_dir.is_dir():
@@ -3601,18 +3726,20 @@ def validate_sdk_project(project_dir: Path) -> List[str]:
             classpath = _build_classpath(project_dir)
             sources = _find_sources(project_dir)
             with tempfile.TemporaryDirectory(prefix="vcfcf-validate-") as tmpdir:
-                _compile(javac, classpath, sources, Path(tmpdir) / "classes")
+                build_dir = Path(tmpdir) / "classes"
+                _compile(javac, classpath, sources, build_dir)
+                _validate_entry_constructor_contract(build_dir, project.entry_class)
         except SdkBuildError as exc:
             errors.append(f"compile check failed: {exc}")
     elif not javac:
         print(
-            "  validate-sdk: javac not on PATH — skipping compile check",
+            "  validate-sdk: javac not on PATH — skipping compile/constructor ABI checks (unverified)",
             file=sys.stderr,
         )
     elif not _sdk_jar_present:
         print(
             "  validate-sdk: vrops-adapters-sdk-*.jar not in adapter_runtime/ "
-            "and VCFCF_SDK_JAR not set — skipping compile check",
+            "and VCFCF_SDK_JAR not set — skipping compile/constructor ABI checks (unverified)",
             file=sys.stderr,
         )
 

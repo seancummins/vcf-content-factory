@@ -1,0 +1,7 @@
+{
+  "source": "recorded pre-task entries plus actual post-reboot verification",
+  "outer_head": "f53bb603e0b112e4febe9acc09cb4d2c6b1f7315",
+  "outer_branch": "feature/rdm-topology-mp",
+  "context_index_before": "ae1b57a4f438d43c5e9285913d28ce207866d9e1cb9a66ed326d4fb1cf555b76",
+  "checkpoint_before": "81e3d0d08b06cac06549ddd6df3d1b2407efd5682d1c3d1ec5e19a798cef7846"
+}

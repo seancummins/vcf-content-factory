@@ -38,7 +38,10 @@ from typing import Optional
 
 import yaml
 
-from ..dashboards.reverse import _parse_controls_meta, _trend_transformations_to_emit
+from ..dashboards.reverse import (
+    _parse_controls_meta, _trend_transformations_to_emit,
+    _parse_view_fidelity, _apply_view_column_fidelity,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -315,6 +318,8 @@ def _parse_view_def_element(elem) -> dict:
         for col in columns:
             col.pop("subject", None)
 
+    fidelity = _parse_view_fidelity(elem)
+    _apply_view_column_fidelity(columns, fidelity)
     return {
         "id": view_id,
         "name": title,
@@ -326,6 +331,8 @@ def _parse_view_def_element(elem) -> dict:
             if len(subject_pairs) > 1 else []
         ),
         "columns": columns,
+        "subject_filter": fidelity["subject_filter"],
+        "summary": fidelity["summary"],
         "data_type": data_type,
         "presentation": presentation,
         "time_window": time_window,
@@ -733,8 +740,11 @@ def _write_sm_yaml(
 
 
 def _emit_view_extras(doc: dict, view_data: dict) -> None:
-    """Emit hide_object_name / forecast_days / transformations when the
-    source carried them (all three default-off in the loader)."""
+    """Emit recovered selector, summary and optional view-level controls."""
+    if view_data.get("subject_filter") is not None:
+        doc.setdefault("subject", {})["filter"] = view_data["subject_filter"]
+    if view_data.get("summary") is not None:
+        doc["summary"] = view_data["summary"]
     if view_data.get("hide_object_name"):
         doc["hide_object_name"] = True
     fd = int(view_data.get("forecast_days") or 0)

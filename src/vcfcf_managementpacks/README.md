@@ -263,3 +263,38 @@ For the Tier 2 adapter kind naming convention:
 - `knowledge/context/api-surface/pak_uninstall_api_exploration.md` — scripted uninstall via
   `/ui/solution.action mainAction=remove`, mandatory
   `isUnremovable` safety guard
+# Explicit PAK comparison policies
+
+`pak-compare` retains `--policy legacy` by default, including historical
+findings, reports, directory selection and exit codes. `--policy upgrade`
+requires the same native Java adapter identity and validates credential
+contracts plus configuration regressions. `--policy structural` requires
+different native Java adapter identities, an independently approved reference,
+one explicit reference PAK and its SHA-256:
+
+```sh
+python3 -m vcfcf_managementpacks pak-compare candidate.pak approved-reference.pak --policy structural --reference-sha256 SHA256
+```
+
+The generated `sdk_buildkit` CLI accepts the same options. Automatic build gates
+use `build-sdk --pak-compare-policy structural --pak-compare-reference
+approved-reference.pak --pak-compare-reference-sha256 SHA256`. These must select
+the same reviewed artifact and policy as the manual comparison. Structural
+directory selection is rejected. A digest pins bytes; reviewer approval of
+structural relevance and target compatibility remains a separate prerequisite.
+
+New policies validate each input independently under the bounded legacy
+credential contract. They are not full XSD validation. Valid optional credential
+differences become INFO only in structural mode; malformed declarations,
+dangling bindings and missing required bindings remain BLOCKING. Requiredness
+omission is effective true for type-7 resources; no-auth instances must
+explicitly declare `isCredentialRequired="false"`. Empty credential containers
+are rejected by factory policy even though the schema permits them.
+
+Reports record policy version, schema-contract version, identities, both
+checksums, stable finding codes, paths and gate result. Unknown policies,
+missing references and mismatched digests fail closed. New policies cannot
+use the legacy dev-only warn-only path; release builds always refuse it.
+`scripts/verify-tier2-sdk.sh ADAPTER REFERENCE_PAK POLICY SHA256` carries the
+same selection into both the automatic and explicit gates. Its historical
+two-argument directory form remains available in legacy mode.

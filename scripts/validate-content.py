@@ -7,10 +7,12 @@
 # inputs: hook JSON on stdin (tool_input.file_path); runs validator subprocess
 # outputs: {"decision": "block", "reason": ...} on stdout when validator fails;
 #          silent (no output) on pass or skip
+import argparse
 import json
 import os
 import subprocess
 import sys
+from typing import Optional
 
 # FACTORY_ROOT is always derived from this script's own location — it is
 # where the vcfcf_* packages live (under src/, see pyproject.toml
@@ -44,22 +46,20 @@ PACKAGE_MAP = {
 }
 
 
-def main() -> None:
-    data = json.load(sys.stdin)
-    file_path = (data.get("tool_input") or {}).get("file_path") or ""
+def validate_path(file_path: str) -> Optional[str]:
     file_path = os.path.realpath(file_path)
 
     if not file_path.startswith(CONTENT_ROOT):
-        return
+        return None
 
     # Derive the content subdirectory (first component after content/)
     rel = os.path.relpath(file_path, CONTENT_ROOT)
     subdir = rel.split(os.sep)[0]
     if subdir not in PACKAGE_MAP:
-        return
+        return None
 
     if not os.path.isfile(file_path):
-        return  # deleted file, skip
+        return None  # deleted file, skip
 
     package, accepts_path = PACKAGE_MAP[subdir]
     cmd = [sys.executable, "-m", package, "validate"]
@@ -86,10 +86,68 @@ def main() -> None:
 
     if result.returncode != 0:
         output = (result.stdout + result.stderr).strip()
-        reason = (
+        return (
             f"content validator blocked write to {os.path.relpath(file_path, WORKSPACE_ROOT)}"
             f" — {package} validate failed:\n{output}"
         )
+    return None
+
+
+def validate_all() -> Optional[str]:
+    """Run the authoritative full-repository content validation chain."""
+    packages = (
+        "vcfcf_supermetrics",
+        "vcfcf_dashboards",
+        "vcfcf_customgroups",
+        "vcfcf_symptoms",
+        "vcfcf_alerts",
+        "vcfcf_reports",
+        "vcfcf_managementpacks",
+    )
+    env = os.environ.copy()
+    src_root = os.path.join(FACTORY_ROOT, "src")
+    existing_pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = src_root + (os.pathsep + existing_pp if existing_pp else "")
+    for package in packages:
+        result = subprocess.run(
+            [sys.executable, "-m", package, "validate"],
+            capture_output=True,
+            text=True,
+            cwd=WORKSPACE_ROOT,
+            env=env,
+        )
+        if result.returncode != 0:
+            output = (result.stdout + result.stderr).strip()
+            return f"{package} validate failed:\n{output}"
+    return None
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--path")
+    parser.add_argument("--all", action="store_true")
+    args, unknown = parser.parse_known_args()
+    if unknown or (args.path and args.all):
+        raise SystemExit("Usage: validate-content.py [--path <content-file>|--all]")
+
+    if args.path:
+        reason = validate_path(args.path)
+        if reason:
+            print(reason, file=sys.stderr)
+            raise SystemExit(1)
+        return
+    if args.all:
+        reason = validate_all()
+        if reason:
+            print(reason, file=sys.stderr)
+            raise SystemExit(1)
+        return
+
+    # Claude Code PostToolUse mode: malformed input must remain fail-open.
+    data = json.load(sys.stdin)
+    file_path = (data.get("tool_input") or {}).get("file_path") or ""
+    reason = validate_path(file_path)
+    if reason:
         print(json.dumps({"decision": "block", "reason": reason}))
 
 

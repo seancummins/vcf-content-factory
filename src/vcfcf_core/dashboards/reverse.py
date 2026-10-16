@@ -14,9 +14,9 @@ View XML:
   structure mirrors what render_views_xml() produces.  parse_view_xml()
   reads a single <ViewDef> by UUID and returns a ViewDef dataclass.
 
-WARN is emitted (not raised) for XML elements/widget types the forward
-renderer doesn't support (render.py "minimum viable shape" comment,
-line 11).  The caller continues with partial results.
+WARN is emitted for unrecognised XML elements/widget types. View selector,
+instanced-group and summary fidelity errors instead raise ValueError, so a
+caller cannot publish partial output that silently changes these semantics.
 
 Phase 1 scope:
   - Dashboard JSON parsing: structural extraction (id, name, description,
@@ -39,6 +39,9 @@ from typing import Optional
 from .loader import (
     AlertListConfig,
     Dashboard,
+    InstancedGroupSpec,
+    SubjectFilterCondition,
+    SummaryRow,
     HeatmapColorThreshold,
     HeatmapConfig,
     HeatmapTab,
@@ -225,10 +228,243 @@ def _resolve_rk_id(
 # View XML -> ViewDef
 # ---------------------------------------------------------------------------
 
+def _view_tag(elem) -> str:
+    return elem.tag.split("}")[-1]
+
+
+def _parse_subject_filter(subjects) -> Optional[list[list[dict]]]:
+    """Decode the existing view-wide selector model; never broaden a selector."""
+    import json
+    import math
+
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("subject filter has duplicate JSON fields")
+            result[key] = value
+        return result
+
+    def unsupported_constant(_value):
+        raise ValueError("subject filter has a nonfinite numeric value")
+
+    decoded = []
+    for subject in subjects:
+        raw = subject.get("filter")
+        if raw is None:
+            decoded.append(None)
+            continue
+        try:
+            groups = json.loads(raw, object_pairs_hook=unique_object, parse_constant=unsupported_constant)
+        except json.JSONDecodeError:
+            raise ValueError("subject filter is malformed JSON") from None
+        if not isinstance(groups, list) or not groups:
+            raise ValueError("subject filter must contain nonempty OR/AND groups")
+        result = []
+        for group in groups:
+            if not isinstance(group, list) or not group:
+                raise ValueError("subject filter must contain nonempty AND groups")
+            conditions = []
+            for condition in group:
+                required = {"condition", "metricKey", "metricValue", "filterType"}
+                if not isinstance(condition, dict) or not required <= condition.keys():
+                    raise ValueError("subject filter condition is missing required fields")
+                if condition.keys() - required - {"transform", "businessHours"}:
+                    raise ValueError("subject filter condition has unsupported fields")
+                metric = condition["metricValue"]
+                if not isinstance(metric, dict) or set(metric) != {"isStringMetric", "value"}:
+                    raise ValueError("subject filter metricValue has unsupported or missing fields")
+                value = metric["value"]
+                if (type(value) not in (str, int, float)
+                        or isinstance(value, float) and not math.isfinite(value)):
+                    raise ValueError("subject filter value is not representable")
+                if type(metric["isStringMetric"]) is not bool or metric["isStringMetric"] != isinstance(value, str):
+                    raise ValueError("subject filter isStringMetric conflicts with its value type")
+                if any(not isinstance(condition[key], str) for key in ("condition", "metricKey", "filterType")):
+                    raise ValueError("subject filter selector fields must be strings")
+                item = {"filter_type": condition["filterType"], "metric_key": condition["metricKey"],
+                        "condition": condition["condition"], "value": value}
+                if "transform" in condition:
+                    if not isinstance(condition["transform"], str):
+                        raise ValueError("subject filter transform must be a supported string")
+                    item["transform"] = condition["transform"]
+                if "businessHours" in condition:
+                    if type(condition["businessHours"]) is not bool:
+                        raise ValueError("subject filter businessHours must be a boolean")
+                    item["business_hours"] = condition["businessHours"]
+                try:
+                    SubjectFilterCondition(**item).validate("reverse view")
+                except ValueError:
+                    raise ValueError("subject filter condition is unsupported") from None
+                conditions.append(item)
+            result.append(conditions)
+        decoded.append(result)
+    # A single ViewDef.subject_filter is emitted for every kind and both roles.
+    # Comparing canonical JSON also distinguishes int/float and optional absence.
+    canonical = [json.dumps(value, sort_keys=True, allow_nan=False) for value in decoded]
+    if canonical and any(value != canonical[0] for value in canonical[1:]):
+        raise ValueError("subject filters differ across SubjectType entries")
+    return decoded[0] if decoded else None
+
+
+def _view_value_properties(value) -> dict[str, str]:
+    result = {}
+    critical = {"attributeKey", "isProperty", "isStringAttribute", "isInstancedGroup",
+                "showInstanceName", "keepInstanceSummary", "instanceGroupName",
+                "transformExpression"}
+    for prop in value:
+        if _view_tag(prop) != "Property":
+            continue
+        name = prop.get("name", "")
+        if name in critical and (prop.get("value") is None or len(prop)):
+            raise ValueError("unsupported view column: expected scalar fidelity property")
+        if prop.get("value") is not None:
+            if name in result:
+                raise ValueError("unsupported view column: duplicate scalar properties")
+            result[name] = prop.get("value")
+    return result
+
+
+def _view_list(prop, context: str):
+    """Read one direct List; descendants cannot silently become sibling Items."""
+    if (set(prop.attrib) != {"name"} or len(prop) != 1
+            or _view_tag(prop[0]) != "List" or prop[0].attrib):
+        raise ValueError(f"unsupported {context}: expected a direct List")
+    return prop[0]
+
+
+def _parse_view_summary(properties, column_count: int) -> Optional[dict]:
+    if not properties:
+        return None
+    if len(properties) != 1:
+        raise ValueError("unsupported summaryInfos: duplicate summary properties")
+    items = _view_list(properties[0], "summaryInfos")
+    if (len(items) != 1 or _view_tag(items[0]) != "Item" or items[0].attrib
+            or len(items[0]) != 1 or _view_tag(items[0][0]) != "Value"
+            or items[0][0].attrib):
+        raise ValueError("unsupported summaryInfos: expected one summary row")
+    props = {}
+    for prop in items[0][0]:
+        if (_view_tag(prop) != "Property" or prop.get("name") not in
+                {"displayName", "aggregation", "attributeIndexes"}):
+            raise ValueError("unsupported summaryInfos property")
+        name = prop.get("name")
+        if name in props:
+            raise ValueError("unsupported summaryInfos: duplicate row properties")
+        props[name] = prop
+    if set(props) != {"displayName", "aggregation", "attributeIndexes"}:
+        raise ValueError("unsupported summaryInfos: missing row properties")
+    summary = {}
+    for wire, field in (("displayName", "display_name"), ("aggregation", "aggregation")):
+        prop = props[wire]
+        if set(prop.attrib) != {"name", "value"} or len(prop):
+            raise ValueError("unsupported summaryInfos scalar property")
+        summary[field] = prop.get("value")
+    if summary["aggregation"] not in {"SUM", "AVG", "MIN", "MAX", "COUNT"}:
+        raise ValueError("unsupported summaryInfos aggregation")
+    items = _view_list(props["attributeIndexes"], "summaryInfos attribute indexes")
+    indexes = []
+    for item in items:
+        if (_view_tag(item) != "Item" or set(item.attrib) != {"value"}
+                or len(item) or not re.fullmatch(r"0|[1-9][0-9]*", item.get("value", ""))):
+            raise ValueError("unsupported summaryInfos attribute index")
+        index = int(item.get("value"))
+        if index >= column_count:
+            raise ValueError("unsupported summaryInfos attribute index range")
+        indexes.append(index)
+    summary["columns"] = indexes
+    return summary
+
+
+def _view_wire_bool(props: dict, key: str, default=False) -> bool:
+    raw = props.get(key)
+    if raw is None:
+        return default
+    if raw not in ("true", "false"):
+        raise ValueError("unsupported view column boolean flag")
+    return raw == "true"
+
+
+def _parse_view_fidelity(elem) -> dict:
+    """Shared selector, instanced-column and summary facts for all reverse APIs.
+
+    Instanced wire Items have one driver followed by colon-instance members;
+    no member carries a second group-name binding. Multiple drivers or members
+    before a driver are ambiguous and rejected rather than assigned a group.
+    """
+    filters = _parse_subject_filter([s for s in elem if _view_tag(s) == "SubjectType"])
+    values = []
+    summaries = []
+    for controls in elem:
+        if _view_tag(controls) != "Controls":
+            continue
+        for control in controls:
+            if _view_tag(control) != "Control" or control.get("type") != "attributes-selector":
+                continue
+            for prop in control:
+                if _view_tag(prop) != "Property":
+                    continue
+                if prop.get("name") == "attributeInfos":
+                    for value in prop.iter():
+                        if _view_tag(value) == "Value":
+                            props = _view_value_properties(value)
+                            if (_view_wire_bool(props, "isInstancedGroup")
+                                    and props.get("attributeKey") != "Instance Name"):
+                                raise ValueError("unsupported instanced group driver fields")
+                            if props.get("attributeKey"):
+                                values.append(props)
+                elif prop.get("name") == "summaryInfos":
+                    summaries.append(prop)
+    drivers = [i for i, p in enumerate(values) if _view_wire_bool(p, "isInstancedGroup")]
+    if len(drivers) > 1:
+        raise ValueError("unsupported instanced group: multiple drivers are ambiguous")
+    group_name = None
+    extras = []
+    for index, props in enumerate(values):
+        extra = {}
+        for wire, yaml_key in (("isProperty", "is_property"), ("isStringAttribute", "is_string_attribute")):
+            if _view_wire_bool(props, wire):
+                extra[yaml_key] = True
+        if props.get("transformExpression"):
+            extra["transform_expression"] = props["transformExpression"]
+        key = props["attributeKey"]
+        if index in drivers:
+            group_name = props.get("instanceGroupName")
+            if key != "Instance Name" or not group_name:
+                raise ValueError("unsupported instanced group driver fields")
+            extra["instanced_group"] = {"name": group_name,
+                "show_instance_name": _view_wire_bool(props, "showInstanceName", True),
+                "keep_instance_summary": _view_wire_bool(props, "keepInstanceSummary")}
+        elif drivers and ":" in key:
+            if group_name is None:
+                raise ValueError("unsupported instanced group: member precedes driver")
+            prefix, tail = key.split(":", 1)
+            if "|" not in tail:
+                raise ValueError("unsupported instanced group member key")
+            sample, suffix = tail.split("|", 1)
+            if not prefix or not sample or not suffix:
+                raise ValueError("unsupported instanced group member key")
+            extra["instanced_group"] = {"name": group_name, "prefix": prefix,
+                                       "sample_instance": sample, "suffix": suffix}
+        extras.append(extra)
+    summary = _parse_view_summary(summaries, len(values))
+    return {"subject_filter": filters, "column_extras": extras, "summary": summary}
+
+
+def _apply_view_column_fidelity(columns: list[dict], fidelity: dict) -> None:
+    if len(columns) != len(fidelity["column_extras"]):
+        raise ValueError("unsupported view column structure")
+    for column, extra in zip(columns, fidelity["column_extras"]):
+        column.update(extra)
+        if "instanced_group" in extra:
+            column.pop("attribute", None)
+
+
 def parse_view_xml_element(elem) -> Optional[ViewDef]:
     """Parse a <ViewDef> XML element (from content.xml) into a ViewDef dataclass.
 
-    Returns None and emits WARN for unrecognised shapes.
+    Returns None and emits WARN for unrecognised shapes. Unsupported selector,
+    instanced-group or summary semantics raise ValueError before partial output.
     This is the dataclass-level API; callers that only need a dict should
     use vcfcf_extractor.extractor._parse_view_def_element() instead.
     """
@@ -292,6 +528,15 @@ def parse_view_xml_element(elem) -> Optional[ViewDef]:
         for col in columns:
             col.subject = None
 
+    fidelity = _parse_view_fidelity(elem)
+    if len(columns) != len(fidelity["column_extras"]):
+        raise ValueError("unsupported view column structure")
+    for column, extra in zip(columns, fidelity["column_extras"]):
+        column.is_property = extra.get("is_property", False)
+        column.is_string_attribute = extra.get("is_string_attribute", False)
+        if "instanced_group" in extra:
+            column.instanced_group = InstancedGroupSpec(**extra["instanced_group"])
+    summary = fidelity["summary"]
     vd = ViewDef(
         id=view_id,
         name=title,
@@ -299,6 +544,10 @@ def parse_view_xml_element(elem) -> Optional[ViewDef]:
         adapter_kind=adapter_kind,
         resource_kind=resource_kind,
         columns=columns,
+        subject_filter=([[SubjectFilterCondition(**c) for c in group] for group in fidelity["subject_filter"]]
+                        if fidelity["subject_filter"] is not None else None),
+        summary=(SummaryRow(summary["display_name"], summary["aggregation"], summary.get("columns"))
+                 if summary is not None else None),
         data_type=data_type,
         presentation=presentation,
         subjects=(
@@ -575,6 +824,8 @@ def parse_view_from_content_xml(xml_bytes: bytes, view_uuid: str) -> Optional[Vi
     """Find and parse a ViewDef by UUID from a content.xml byte string.
 
     Returns a ViewDef dataclass, or None with WARN if not found.
+    Unsupported selector/group/summary semantics raise ValueError, never an
+    apparently valid view with a broader resource selection.
     """
     import xml.etree.ElementTree as ET
 

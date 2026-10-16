@@ -195,7 +195,10 @@ _DESCRIBE_XML = textwrap.dedent("""\
 # it fails (no SDK jar).  The test doesn't require Java to succeed.
 _JAVA_SRC = textwrap.dedent("""\
     package com.vcfcf.adapters.kitisolation;
-    public class KitIsolationAdapter {}
+    public class KitIsolationAdapter {
+        public KitIsolationAdapter() {}
+        public KitIsolationAdapter(String adapterDir, Integer instanceId) {}
+    }
 """)
 
 

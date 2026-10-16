@@ -1,0 +1,3 @@
+OFFLINE_NATIVE_GUARD Landlock_ABI=10; stock wrapper; scratch=/tmp/vcfcf-def019-stock-56fnt5u2
+STOCK_VALIDATION_COMMAND ['/bin/bash', '/home/scummins/Documents/vcf-content-factory/scripts/validate-changed-content.sh', '--all']
+STOCK_VALIDATION_EXIT 0

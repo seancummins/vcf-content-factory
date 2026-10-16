@@ -1,0 +1,3 @@
+OFFLINE_NATIVE_GUARD Landlock_ABI=10; mode=current; scratch=/tmp/vcfcf-def019-independent-629rai8u
+FORWARD_CORPUS {"factory_imports": false, "sha256": "4448d9bcb3037e08845e706aef62912de3b6471e87ae46e7a654deec382bc288", "sm_inputs": 41, "views": 26, "warnings": 0}
+INDEPENDENT_CHECK_EXIT 0

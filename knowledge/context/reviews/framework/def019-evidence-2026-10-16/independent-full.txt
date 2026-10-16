@@ -1,0 +1,479 @@
+OFFLINE_NATIVE_GUARD Landlock_ABI=10; externally read-only inputs; scratch=/tmp/vcfcf-offline-z2n1x6vx; child networking denied
+GUARDED_SUITE_WITH_EXCLUSION tests/test_core_row4_seams.py::test_offline_reverse_from_the_wheel_alone_matches_the_factory_path
+WHEEL_PREREQUISITES missing local prerequisites: setuptools>=64, setuptools-scm>=8, wheel; nothing installed
+PYTEST_ARGV ['/home/scummins/Documents/vcf-content-factory/.venv/bin/python', '-B', '-m', 'pytest', 'tests', '--override-ini=addopts=', '-m', '', '-p', 'no:cacheprovider', '--basetemp=/tmp/vcfcf-offline-z2n1x6vx/pytest', '--deselect=tests/test_core_row4_seams.py::test_offline_reverse_from_the_wheel_alone_matches_the_factory_path', '-q', '-ra']
+........................................................................ [  2%]
+..........ssss.......sss................................................ [  4%]
+........................................................................ [  7%]
+...........s............................................................ [  9%]
+........................................................................ [ 12%]
+........................................................................ [ 14%]
+........................................................................ [ 17%]
+........................................................................ [ 19%]
+........................................................................ [ 21%]
+........................................................................ [ 24%]
+...........s............................................................ [ 26%]
+........................................................................ [ 29%]
+.................s...................................................... [ 31%]
+........................................................................ [ 34%]
+........................................................................ [ 36%]
+........................................................................ [ 39%]
+........................................................................ [ 41%]
+........................................................................ [ 43%]
+........................................................................ [ 46%]
+........................................................................ [ 48%]
+........................................................................ [ 51%]
+........................................................................ [ 53%]
+......sss............................s.................................. [ 56%]
+........................................................................ [ 58%]
+........................................................................ [ 61%]
+..........................................s............................. [ 63%]
+........................................................................ [ 65%]
+........................................................................ [ 68%]
+........................................................................ [ 70%]
+........................................................................ [ 73%]
+........................................................................ [ 75%]
+........................................................................ [ 78%]
+........................................................................ [ 80%]
+........................................................................ [ 83%]
+........................................................................ [ 85%]
+........................................................................ [ 87%]
+........................................................................ [ 90%]
+........................................................................ [ 92%]
+........................................................................ [ 95%]
+........................................................................ [ 97%]
+...................................................................      [100%]
+=============================== warnings summary ===============================
+tests/managementpacks/test_buildkit_isolated_build.py:377
+  /home/scummins/Documents/vcf-content-factory/tests/managementpacks/test_buildkit_isolated_build.py:377: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(60)
+
+tests/managementpacks/test_buildkit_isolated_build.py:450
+  /home/scummins/Documents/vcf-content-factory/tests/managementpacks/test_buildkit_isolated_build.py:450: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(60)
+
+tests/managementpacks/test_buildkit_isolated_build.py:604
+  /home/scummins/Documents/vcf-content-factory/tests/managementpacks/test_buildkit_isolated_build.py:604: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(30)
+
+tests/managementpacks/test_buildkit_isolated_build.py:684
+  /home/scummins/Documents/vcf-content-factory/tests/managementpacks/test_buildkit_isolated_build.py:684: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(30)
+
+tests/managementpacks/test_buildkit_isolated_build.py:823
+  /home/scummins/Documents/vcf-content-factory/tests/managementpacks/test_buildkit_isolated_build.py:823: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(30)
+
+tests/managementpacks/test_buildkit_release_flag.py:187
+  /home/scummins/Documents/vcf-content-factory/tests/managementpacks/test_buildkit_release_flag.py:187: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(60)
+
+tests/managementpacks/test_buildkit_release_flag.py:203
+  /home/scummins/Documents/vcf-content-factory/tests/managementpacks/test_buildkit_release_flag.py:203: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(60)
+
+tests/managementpacks/test_buildkit_release_flag.py:220
+  /home/scummins/Documents/vcf-content-factory/tests/managementpacks/test_buildkit_release_flag.py:220: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(60)
+
+tests/managementpacks/test_bundled_content_resolver.py::TestViewResolvesRelativeToProjectDir::test_colocated_view_is_found
+tests/managementpacks/test_bundled_content_resolver.py::TestBareNamePrefixEnforcement::test_prefixed_view_still_loads_via_bundled_content
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view '[VCF Content Factory] Bundled Test View': one or more columns use an aggregating transformation (AVG/MAX/PERCENTILE/TRANSFORM_EXPRESSION) but no time_window is set. Columns will aggregate over the view's default window (typically 24 hours). Set time_window: {{unit: MONTHS, count: 6}} to make the window explicit.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/managementpacks/test_bundled_content_resolver.py::TestBareNamePrefixEnforcement::test_bare_named_view_loads_via_bundled_content
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'ESXi Host Details vCommunity': one or more columns use an aggregating transformation (AVG/MAX/PERCENTILE/TRANSFORM_EXPRESSION) but no time_window is set. Columns will aggregate over the view's default window (typically 24 hours). Set time_window: {{unit: MONTHS, count: 6}} to make the window explicit.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/managementpacks/test_bundled_reports_emit.py::TestViewsAndReportsCoexist::test_views_and_reports_content_reports_dir_once
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view '[VCF Content Factory] Test View': one or more columns use an aggregating transformation (AVG/MAX/PERCENTILE/TRANSFORM_EXPRESSION) but no time_window is set. Columns will aggregate over the view's default window (typically 24 hours). Set time_window: {{unit: MONTHS, count: 6}} to make the window explicit.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/managementpacks/test_gap_b_f_d.py::TestGapFJMESPathPredicates::test_plain_path_no_predicate_still_works
+tests/managementpacks/test_gap_b_f_d.py::TestGapFJMESPathPredicates::test_plain_path_renders_multi_element_key
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] JMESPath Test MP: object_type 'Site': metric 'latency': key 'latency' label 'Test Metric' derives to 'test_metric' — factory will emit 'test_metric' on the wire. Update YAML key: to 'test_metric' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestGapDCoerceHint::test_coerce_number_on_number_metric_accepted
+tests/managementpacks/test_gap_b_f_d.py::TestGapDCoerceHint::test_coerce_hint_does_not_change_wire_data_type
+tests/managementpacks/test_gap_b_f_d.py::TestGapDCoerceHint::test_no_coerce_field_still_works
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [label-lint] Coerce Test MP: object_type 'Controller': metric 'cpu_pct': label 'CPU %' contains '%' → derived key 'cpu_' has trailing underscore
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestGapDCoerceHint::test_coerce_number_on_number_metric_accepted
+tests/managementpacks/test_gap_b_f_d.py::TestGapDCoerceHint::test_coerce_hint_does_not_change_wire_data_type
+tests/managementpacks/test_gap_b_f_d.py::TestGapDCoerceHint::test_no_coerce_field_still_works
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Coerce Test MP: object_type 'Controller': metric 'cpu_pct': key 'cpu_pct' label 'CPU %' derives to 'cpu_' — factory will emit 'cpu_' on the wire. Update YAML key: to 'cpu_' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestGapDCoerceHint::test_coerce_number_plus_jmespath_predicate_combo
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Combo Test MP: object_type 'Site': metric 'wan_tx_bytes': key 'wan_tx_bytes' label 'WAN TX Bytes/s' derives to 'wan_tx_bytes/s' — factory will emit 'wan_tx_bytes/s' on the wire. Update YAML key: to 'wan_tx_bytes/s' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Synology Diskstation': metric 'firmware_ver': key 'firmware_ver' label 'Firmware Version' derives to 'firmware_version' — factory will emit 'firmware_version' on the wire. Update YAML key: to 'firmware_version' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Synology Diskstation': metric 'sys_temp': key 'sys_temp' label 'System Temperature' derives to 'system_temperature' — factory will emit 'system_temperature' on the wire. Update YAML key: to 'system_temperature' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Synology Diskstation': metric 'time_zone_desc': key 'time_zone_desc' label 'Time Zone' derives to 'time_zone' — factory will emit 'time_zone' on the wire. Update YAML key: to 'time_zone' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Synology Diskstation': metric 'avail_real': key 'avail_real' label 'Available Real Memory' derives to 'available_real_memory' — factory will emit 'available_real_memory' on the wire. Update YAML key: to 'available_real_memory' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Synology Diskstation': metric 'avail_swap': key 'avail_swap' label 'Available Swap' derives to 'available_swap' — factory will emit 'available_swap' on the wire. Update YAML key: to 'available_swap' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Synology Diskstation': metric 'si_disk': key 'si_disk' label 'Swap In From Disk' derives to 'swap_in_from_disk' — factory will emit 'swap_in_from_disk' on the wire. Update YAML key: to 'swap_in_from_disk' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Synology Diskstation': metric 'so_disk': key 'so_disk' label 'Swap Out To Disk' derives to 'swap_out_to_disk' — factory will emit 'swap_out_to_disk' on the wire. Update YAML key: to 'swap_out_to_disk' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Synology Diskstation': metric 'total_real': key 'total_real' label 'Total Real Memory' derives to 'total_real_memory' — factory will emit 'total_real_memory' on the wire. Update YAML key: to 'total_real_memory' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Volume': metric 'size_free_byte': key 'size_free_byte' label 'Size Free' derives to 'size_free' — factory will emit 'size_free' on the wire. Update YAML key: to 'size_free' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Volume': metric 'size_total_byte': key 'size_total_byte' label 'Size Total' derives to 'size_total' — factory will emit 'size_total' on the wire. Update YAML key: to 'size_total' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Volume': metric 'read_access': key 'read_access' label 'Read IOPS' derives to 'read_iops' — factory will emit 'read_iops' on the wire. Update YAML key: to 'read_iops' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Volume': metric 'write_access': key 'write_access' label 'Write IOPS' derives to 'write_iops' — factory will emit 'write_iops' on the wire. Update YAML key: to 'write_iops' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Volume': metric 'read_byte': key 'read_byte' label 'Read Throughput' derives to 'read_throughput' — factory will emit 'read_throughput' on the wire. Update YAML key: to 'read_throughput' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Volume': metric 'write_byte': key 'write_byte' label 'Write Throughput' derives to 'write_throughput' — factory will emit 'write_throughput' on the wire. Update YAML key: to 'write_throughput' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Volume': metric 'utilization_pct': key 'utilization_pct' label 'Volume Utilization' derives to 'volume_utilization' — factory will emit 'volume_utilization' on the wire. Update YAML key: to 'volume_utilization' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Disks': metric 'firm': key 'firm' label 'Firmware' derives to 'firmware' — factory will emit 'firmware' on the wire. Update YAML key: to 'firmware' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_validates
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_renders_one_session_variable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_session_variable_id_is_stable
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_jmespath_paths_in_metrics
+tests/managementpacks/test_gap_b_f_d.py::TestSynologyRegression::test_synology_no_coerce_hints
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_managementpacks/loader.py:996: UserWarning: [key-drift] Synology NAS: object_type 'Disks': metric 'wcache_force_off': key 'wcache_force_off' label 'Write Cache Force Off' derives to 'write_cache_force_off' — factory will emit 'write_cache_force_off' on the wire. Update YAML key: to 'write_cache_force_off' or accept that explicit key is advisory only.
+    _validate_metric(ot_tag, m, ms_names_for_source)
+
+tests/managementpacks/test_sdk_content_emit.py::TestViewSmCrossRefResolution::test_view_with_sm_column_resolves
+tests/managementpacks/test_sdk_content_emit.py::TestViewSmCrossRefResolution::test_view_sm_column_uuid_in_xml
+tests/managementpacks/test_sdk_content_emit.py::TestFullCombinedPak::test_all_content_types_in_single_pak
+tests/managementpacks/test_sdk_content_emit.py::TestFullCombinedPak::test_view_sm_uuid_present_in_combined_pak
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view '[VCF Content Factory] Test View With SM': one or more columns use an aggregating transformation (AVG/MAX/PERCENTILE/TRANSFORM_EXPRESSION) but no time_window is set. Columns will aggregate over the view's default window (typically 24 hours). Set time_window: {{unit: MONTHS, count: 6}} to make the window explicit.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/managementpacks/test_sdk_content_emit.py::TestReportSubdirEmission::test_report_written_as_subdirectory_not_flat_file
+tests/managementpacks/test_sdk_content_emit.py::TestReportSubdirEmission::test_report_content_xml_co_bundles_referenced_view
+tests/managementpacks/test_sdk_content_emit.py::TestReportSubdirEmission::test_report_subdirectory_has_localization_bundle_for_embedded_view
+tests/managementpacks/test_sdk_content_emit.py::TestReportSubdirEmission::test_report_referencing_view_outside_bundle_left_verbatim
+tests/managementpacks/test_sdk_content_emit.py::TestReportSubdirEmission::test_report_and_view_slugs_do_not_collide
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view '[VCF Content Factory] Test Report View': one or more columns use an aggregating transformation (AVG/MAX/PERCENTILE/TRANSFORM_EXPRESSION) but no time_window is set. Columns will aggregate over the view's default window (typically 24 hours). Set time_window: {{unit: MONTHS, count: 6}} to make the window explicit.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_cli_phase4.py: 4 warnings
+tests/test_publish_phase3.py: 29 warnings
+tests/test_publish_pr_mode_v4.py: 27 warnings
+tests/test_publish_seams.py: 4 warnings
+tests/test_release_audit_default_and_this_refs.py: 3 warnings
+tests/test_third_party_component_routing_phase5.py: 2 warnings
+tests/test_third_party_routing.py: 2 warnings
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_packaging/publish.py:211: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    f"pid={os.getpid()} started={datetime.datetime.utcnow().isoformat()}Z\n"
+
+tests/test_compat_shims.py::test_old_import_then_in_process_runpy_completes
+  <frozen runpy>:130: RuntimeWarning: 'cfold_test_old_import_then_in_proces0.side' found in sys.modules after import of package 'cfold_test_old_import_then_in_proces0', but prior to execution of 'cfold_test_old_import_then_in_proces0.side'; this may result in unpredictable behaviour
+
+tests/test_dep_walker_phase15.py::TestCapacityAssessment::test_no_errors
+tests/test_dep_walker_phase15.py::TestDemandDrivenCapacityV2::test_no_errors
+tests/test_install_ps1_tls_and_advisories.py::TestPythonInstallerPinsStdout::test_stdio_is_reconfigured
+tests/test_release_builder_phase2.py::TestDashboardHeadline::test_returns_one_artifact
+tests/test_release_builder_phase2.py::TestBundleHeadline::test_returns_one_artifact
+tests/test_third_party_component_routing_phase5.py::TestBuildReleaseThirdPartyView::test_returns_one_artifact
+tests/test_third_party_routing.py::TestBuildReleaseThirdParty::test_returns_one_artifact
+  /home/scummins/Documents/vcf-content-factory/.venv/lib64/python3.14/site-packages/_pytest/fixtures.py:1313: PytestRemovedIn10Warning: Class-scoped fixture defined as instance method is deprecated.
+  Instance attributes set in this fixture will NOT be visible to test methods,
+  as each test gets a new instance while the fixture runs only once per class.
+  Use @classmethod decorator and set attributes on cls instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#class-scoped-fixture-as-instance-method
+    fixturefunc = resolve_fixture_function(fixturedef, request)
+
+tests/test_dep_walker_sm_crossref.py: 1 warning
+tests/test_discrete_builder_builtin_metric_enables.py: 12 warnings
+tests/test_publish_phase3.py: 3 warnings
+tests/test_release_audit_default_and_this_refs.py: 5 warnings
+tests/test_release_builder_phase2.py: 1 warning
+tests/test_third_party_component_routing_phase5.py: 1 warning
+tests/test_view_time_segment_column.py: 1 warning
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_packaging/discrete_builder.py:769: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    built_at=_dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'ESXi BIOS version distribution' column 'BIOS Versions' (attribute 'hardware|biosVersion'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'ESXi CPU Models' column 'cpu|cpuModel' (attribute 'cpu|cpuModel'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'ESXi Distribution by Versions' column 'Build Numbers' (attribute 'summary|version'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'ESXi Host Hardware vCommunity' column 'Server Hardware' (attribute 'hardware|vendorModel'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'ESXi Host Maintenance Mode vCommunity' column 'Maintenance State' (attribute 'runtime|maintenanceState'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'ESXi Host Power State vCommunity' column 'Power State' (attribute 'runtime|powerState'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'ESXi Host Versions vCommunity' column 'ESXi Version' (attribute 'summary|version'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'ESXi HyperThread Capability' column '.' (attribute 'config|hyperThread|available'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'ESXi Power Management (BIOS)' column 'BIOS Setting' (attribute 'hardware|powerManagementTechnoloy'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'ESXi Power Management' column 'hardware|powerManagementPolicy' (attribute 'hardware|powerManagementPolicy'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'vSphere Cluster Admission Control Policy' column '.' (attribute 'configuration|dasConfig|admissionControlPolicyId'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'vSphere Cluster DPM Status' column 'DPM Enabled?' (attribute 'configuration|dpmConfiginfo|enabled'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'vSphere Cluster DRS Automation Status' column 'DRS Automation Level' (attribute 'configuration|drsconfig|defaultVmBehavior'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'vSphere Cluster DRS Status' column 'DRS Enabled?' (attribute 'configuration|drsConfig|enabled'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'vSphere Cluster HA Admission Control status' column 'HA Admission Control Enabled' (attribute 'configuration|dasConfig|admissionControlEnabled'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'vSphere Cluster HA Status' column 'HA Enabled?' (attribute 'configuration|dasConfig|enabled'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'vSphere Port Group Forged Transmit Allowed' column '.' (attribute 'config|policies|security|forged_transmits'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'vSphere Port Group MAC Address Change' column '.' (attribute 'config|policies|security|mac_changes'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'vSphere Port Group Promiscuous Mode Allowed' column '.' (attribute 'config|policies|security|allow_promiscuous'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_emit_fidelity_bugs.py::TestViewCountAndEdgeCase::test_96_views_render_without_error
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'vSphere Switch Version' column '.' (attribute 'summary|version'): data_type is 'distribution' and this attribute looks like a string/enum resource property, but is_property: true and buckets: {dynamic: true, calc_function: DISCRETE}, it will render as a fixed numeric histogram (min/max/count) instead of a discrete bucket set, which silently produces "No data to display" (DEF-012; see knowledge/context/api-surface/distribution_view_no_data.md). If this attribute really is a string property, fix with: is_property: true and buckets: {dynamic: true, calc_function: DISCRETE} (is_string_attribute is independent and does not affect this warning). If it is genuinely numeric, this warning is a false positive and can be ignored.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_publish_phase3.py: 22 warnings
+tests/test_publish_pr_mode_v4.py: 25 warnings
+tests/test_publish_seams.py: 2 warnings
+tests/test_release_audit_default_and_this_refs.py: 1 warning
+tests/test_third_party_component_routing_phase5.py: 1 warning
+tests/test_third_party_routing.py: 2 warnings
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_packaging/readme_gen.py:652: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+    .utcfromtimestamp(mtime)
+
+tests/test_publish_phase3.py::TestStaleZipSweep::test_stale_zip_moved_to_retired
+tests/test_publish_phase3.py::TestRetiredSectionDownloadLink::test_retired_download_link_uses_retired_prefix
+tests/test_publish_phase3.py::TestRetiredSectionDownloadLink::test_retired_download_link_does_not_use_bare_filename
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_packaging/readme_gen.py:853: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+    .utcfromtimestamp(mtime)
+
+tests/test_publish_pr_mode_v4.py: 20 warnings
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_packaging/publish.py:413: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    today = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+
+tests/test_publish_pr_mode_v4.py::TestExistingReleaseBranch::test_local_branch_already_exists_fails
+  /home/scummins/Documents/vcf-content-factory/tests/test_publish_pr_mode_v4.py:885: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    today = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+
+tests/test_publish_pr_mode_v4.py::TestBranchNaming::test_next_release_branch_name_skips_existing
+  /home/scummins/Documents/vcf-content-factory/tests/test_publish_pr_mode_v4.py:1133: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    today = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+
+tests/test_release_builder_phase2.py::TestBundleHeadline::test_returns_one_artifact
+tests/test_third_party_component_routing_phase5.py::test_project_yaml_release_still_routes_to_thirdparty_dashboards
+tests/test_third_party_routing.py::TestBuildReleaseThirdParty::test_returns_one_artifact
+tests/test_third_party_routing.py::test_publish_thirdparty_zip_lands_at_correct_path
+tests/test_third_party_routing.py::TestFactoryNativeRegressionGuard::test_capacity_assessment_publish_zip_in_bundles
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_packaging/builder.py:492: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    built_at=_dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+
+tests/test_reverse_path_drops.py::test_reverse_yaml_carries_the_fields
+  /home/scummins/Documents/vcf-content-factory/tests/test_reverse_path_drops.py:101: UserWarning: vcfcf_dashboards.reverse: dashboard 'VCF Consumption Overview v2': View widget references viewDefinitionId='e27925b5-1cf1-4fde-a835-41c84577be35' not in extracted views; view_name will be empty
+    by_title = {w.title: _widget_to_yaml_dict(w, {}) for w in parse_dashboard_json(dj, {}).widgets}
+
+tests/test_reverse_path_drops.py::test_reverse_yaml_carries_the_fields
+  /home/scummins/Documents/vcf-content-factory/tests/test_reverse_path_drops.py:101: UserWarning: vcfcf_dashboards.reverse: dashboard 'VCF Consumption Overview v2': View widget references viewDefinitionId='6b512229-ff2c-490b-8cfb-ae70f3008de0' not in extracted views; view_name will be empty
+    by_title = {w.title: _widget_to_yaml_dict(w, {}) for w in parse_dashboard_json(dj, {}).widgets}
+
+tests/test_reverse_property_list_rra.py::TestParsePropertyListConfig::test_visual_theme_depth_show_full_name
+  /home/scummins/Documents/vcf-content-factory/tests/test_reverse_property_list_rra.py:226: UserWarning: vcfcf_dashboards.reverse: dashboard 'dash': PropertyList widget 'w1' has no parseable metrics
+    result = _parse_property_list_config(cfg, "dash", "w1")
+
+tests/test_view_instanced_group_columns.py::TestInstancedGroupMemberTransformEmission::test_max_member_column_rolluptype_none
+tests/test_view_instanced_group_columns.py::TestInstancedGroupMemberTransformEmission::test_transform_expression_member_column_emits_sibling_property
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view '[VCF Content Factory] Transform Test': one or more columns use an aggregating transformation (AVG/MAX/PERCENTILE/TRANSFORM_EXPRESSION) but no time_window is set. Columns will aggregate over the view's default window (typically 24 hours). Set time_window: {{unit: MONTHS, count: 6}} to make the window explicit.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_view_instanced_group_columns.py::TestInstancedGroupMemberTransformEmission::test_max_member_column_rolluptype_none
+tests/test_view_instanced_group_columns.py::TestInstancedGroupMemberTransformEmission::test_transform_expression_member_column_emits_sibling_property
+  /home/scummins/Documents/vcf-content-factory/tests/test_view_instanced_group_columns.py:372: UserWarning: view '[VCF Content Factory] Transform Test': one or more columns use an aggregating transformation (AVG/MAX/PERCENTILE/TRANSFORM_EXPRESSION) but no time_window is set. Columns will aggregate over the view's default window (typically 24 hours). Set time_window: {{unit: MONTHS, count: 6}} to make the window explicit.
+    v.validate(enforce_framework_prefix=False)
+
+tests/test_view_instanced_group_columns.py::TestInstancedGroupMemberUnprovenTransformationsRejected::test_percentile_still_allowed_on_non_instanced_column
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view 'X': one or more columns use an aggregating transformation (AVG/MAX/PERCENTILE/TRANSFORM_EXPRESSION) but no time_window is set. Columns will aggregate over the view's default window (typically 24 hours). Set time_window: {{unit: MONTHS, count: 6}} to make the window explicit.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+tests/test_view_pin_display_name.py::test_reverse_emits_pin_name_only_when_it_differs
+  /home/scummins/Documents/vcf-content-factory/tests/test_view_pin_display_name.py:125: UserWarning: vcfcf_dashboards.reverse: dashboard 'Rev': View widget references viewDefinitionId='e27925b5-1cf1-4fde-a835-41c84577be35' not in extracted views; view_name will be empty
+    w = parse_dashboard_json(_dash_json("NSX World"), {}).widgets[0]
+
+tests/test_view_pin_display_name.py::test_reverse_emits_pin_name_only_when_it_differs
+  /home/scummins/Documents/vcf-content-factory/tests/test_view_pin_display_name.py:128: UserWarning: vcfcf_dashboards.reverse: dashboard 'Rev': View widget references viewDefinitionId='e27925b5-1cf1-4fde-a835-41c84577be35' not in extracted views; view_name will be empty
+    w = parse_dashboard_json(_dash_json("NSX-T World"), {}).widgets[0]
+
+tests/test_view_pin_display_name.py::test_license_export_pins_resolve_to_display_names
+  /home/scummins/Documents/vcf-content-factory/tests/test_view_pin_display_name.py:143: UserWarning: vcfcf_dashboards.reverse: dashboard 'VCF Consumption Overview v2': View widget references viewDefinitionId='e27925b5-1cf1-4fde-a835-41c84577be35' not in extracted views; view_name will be empty
+    for w in parse_dashboard_json(dj, {}).widgets:
+
+tests/test_view_pin_display_name.py::test_license_export_pins_resolve_to_display_names
+  /home/scummins/Documents/vcf-content-factory/tests/test_view_pin_display_name.py:143: UserWarning: vcfcf_dashboards.reverse: dashboard 'VCF Consumption Overview v2': View widget references viewDefinitionId='6b512229-ff2c-490b-8cfb-ae70f3008de0' not in extracted views; view_name will be empty
+    for w in parse_dashboard_json(dj, {}).widgets:
+
+tests/test_view_reverse_fidelity.py::test_source_xml_yaml_reload_is_byte_identical[instanced-dataclass]
+tests/test_view_reverse_fidelity.py::test_uniform_filters_preserve_types_group_order_and_optional_absence[dataclass]
+tests/test_view_reverse_fidelity.py::test_instanced_roles_flags_transformations_and_summary_survive[dataclass]
+tests/test_view_reverse_fidelity.py::test_factory_alias_callers_preserve_supported_xml[dataclass]
+  /home/scummins/Documents/vcf-content-factory/src/vcfcf_core/dashboards/loader.py:2706: UserWarning: view '[VCF Content Factory] Synthetic instanced reverse': one or more columns use an aggregating transformation (AVG/MAX/PERCENTILE/TRANSFORM_EXPRESSION) but no time_window is set. Columns will aggregate over the view's default window (typically 24 hours). Set time_window: {{unit: MONTHS, count: 6}} to make the window explicit.
+    v.validate(enforce_framework_prefix=enforce_framework_prefix, embedded_in_dashboard=embedded_in_dashboard)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [4] tests/managementpacks/test_gap_b_f_d.py: render_mpb_exchange_json does not yet emit buildNumber — product decision pending (see knowledge/ROADMAP.md known gaps)
+SKIPPED [1] tests/managementpacks/test_pak_compare.py:155: SDK compliance paks not found in dist/ — skipping integration test
+SKIPPED [1] tests/managementpacks/test_pak_compare.py:166: SDK compliance paks not found in dist/ — skipping integration test
+SKIPPED [1] tests/managementpacks/test_pak_compare.py:182: MPB reference paks not found in dist/ — skipping Tier 1 regression test
+SKIPPED [1] tests/managementpacks/test_scaffold_sdk_cert_review.py:68: SDK jar not present (not redistributable)
+SKIPPED [1] tests/test_core_contract.py:144: could not import 'setuptools': No module named 'setuptools'
+SKIPPED [1] tests/test_core_shims.py:350: wrapper defines every public name itself
+SKIPPED [1] tests/test_install_ps1_tls_and_advisories.py:552: PowerShell not installed
+SKIPPED [1] tests/test_install_ps1_tls_and_advisories.py:558: PowerShell not installed
+SKIPPED [1] tests/test_install_ps1_tls_and_advisories.py:564: PowerShell not installed
+SKIPPED [1] tests/test_install_ps1_tls_and_advisories.py:1087: PowerShell not installed
+SKIPPED [1] tests/test_rdm_fixture_export.py:138: operator fixture already exists; never touch it
+2932 passed, 15 skipped, 1 deselected, 337 warnings in 191.72s (0:03:11)
